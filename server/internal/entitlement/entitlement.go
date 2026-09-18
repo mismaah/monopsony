@@ -66,7 +66,16 @@ func (r *Resolver) SetPlan(p Plan) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	p.Caps.Tier = p.Tier
+	p.Caps.normalize()
 	r.plans[p.Tier] = p
+}
+
+// normalize ensures slice fields are never nil so they serialize as [] rather
+// than null (records persisted before a field existed unmarshal to nil).
+func (c *Capabilities) normalize() {
+	if c.CosmeticSlots == nil {
+		c.CosmeticSlots = []string{}
+	}
 }
 
 // Load replaces the defaults with plans persisted by the admin, if any.
@@ -83,6 +92,7 @@ func (r *Resolver) Load(ctx context.Context, st store.Store) error {
 			return err
 		}
 		caps.Tier = rec.Tier
+		caps.normalize()
 		r.plans[rec.Tier] = Plan{Tier: rec.Tier, PriceID: rec.PriceID, Caps: caps}
 	}
 	return nil

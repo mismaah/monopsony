@@ -19,6 +19,21 @@ func LegalActions(s *State, playerID string) []Action {
 	e := &engine{s: s, rng: nil}
 	var out []Action
 	add := func(a Action) { out = append(out, a) }
+
+	// A player may give up at any point, even mid-auction or mid-trade.
+	add(Action{Type: "Surrender"})
+
+	// A pending trade pauses everything else: the recipient answers, the
+	// proposer may withdraw, everyone else waits.
+	if t := s.Trade; t != nil {
+		if t.ToID == p.ID {
+			add(Action{Type: "AcceptTrade", TradeID: t.ID})
+			add(Action{Type: "RejectTrade", TradeID: t.ID})
+		} else if t.FromID == p.ID {
+			add(Action{Type: "RejectTrade", TradeID: t.ID})
+		}
+		return out
+	}
 	current := e.isCurrent(p)
 
 	switch s.Turn.Phase {
@@ -66,7 +81,7 @@ func LegalActions(s *State, playerID string) []Action {
 	}
 
 	// Trades
-	if s.Trade == nil && len(s.ActivePlayers()) > 1 {
+	if len(s.ActivePlayers()) > 1 {
 		switch s.Turn.Phase {
 		case PhasePreRoll, PhasePostRoll:
 			add(Action{Type: "ProposeTrade"})
@@ -74,14 +89,6 @@ func LegalActions(s *State, playerID string) []Action {
 			if e.isDebtor(p.ID) {
 				add(Action{Type: "ProposeTrade"})
 			}
-		}
-	}
-	if t := s.Trade; t != nil {
-		if t.ToID == p.ID {
-			add(Action{Type: "AcceptTrade", TradeID: t.ID})
-			add(Action{Type: "RejectTrade", TradeID: t.ID})
-		} else if t.FromID == p.ID {
-			add(Action{Type: "RejectTrade", TradeID: t.ID})
 		}
 	}
 	return out
@@ -109,16 +116,16 @@ func (e *engine) propertyActions(p *Player, full bool) []Action {
 }
 
 // WaitingOn returns the IDs of players whose input the game is waiting for.
-// A pending trade's recipient is listed first so they answer before play
-// moves on.
+// While a trade is pending the game is paused and only its recipient is
+// waited on.
 func WaitingOn(s *State) []string {
 	if s.Turn.Phase == PhaseGameOver {
 		return nil
 	}
-	var out []string
 	if t := s.Trade; t != nil {
-		out = append(out, t.ToID)
+		return []string{t.ToID}
 	}
+	var out []string
 	switch s.Turn.Phase {
 	case PhaseAuction:
 		if s.Auction != nil {

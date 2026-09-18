@@ -656,6 +656,88 @@ func (e *engine) declareBankruptcy(p *Player) error {
 	if err := e.canDeclareBankruptcy(p); err != nil {
 		return err
 	}
+	e.eliminate(p, "insolvent")
+	if e.checkGameEnd() {
+		return nil
+	}
+	if len(e.s.Debts) == 0 {
+		e.resumeAfterDebts()
+	}
+	return nil
+}
+
+// surrender removes a player from the game in any phase. It settles them
+// exactly like a bankruptcy (creditor first, otherwise the bank), drops them
+// from a running auction, and hands the turn on if it was theirs.
+func (e *engine) surrender(p *Player) error {
+	s := e.s
+	// Anything still owed to the leaver is owed to the bank instead: the
+	// debtor stays in RaisingFunds and the bank inherits the claim along
+	// with the rest of the leaver's assets.
+	for i := range s.Debts {
+		if s.Debts[i].CreditorID == p.ID {
+			s.Debts[i].CreditorID = ""
+		}
+	}
+	e.eliminate(p, "surrender")
+	if e.checkGameEnd() {
+		return nil
+	}
+	switch s.Turn.Phase {
+	case PhaseAuction:
+		// Leaving a live auction is a pass; finishing it resumes play, which
+		// skips the leaver's turn and runs any auctions the surrender queued.
+		e.dropBidder(p)
+	case PhaseRaisingFunds:
+		if len(s.Debts) == 0 {
+			e.resumeAfterDebts()
+		}
+	default:
+		if len(s.PendingAuctions) > 0 {
+			// Auction the freed deeds now; resume() afterwards returns to this
+			// phase or, if the leaver held the turn, passes it on.
+			next := s.PendingAuctions[0]
+			s.PendingAuctions = s.PendingAuctions[1:]
+			e.startAuction(next, s.Turn.Phase)
+			return nil
+		}
+		if e.isCurrent(p) {
+			e.advanceTurn()
+		}
+	}
+	return nil
+}
+
+// dropBidder removes a player from the running auction. A high bid they held
+// is withdrawn, so the remaining bidders start over from nothing.
+func (e *engine) dropBidder(p *Player) {
+	a := e.s.Auction
+	idx := -1
+	for i, id := range a.Active {
+		if id == p.ID {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		return // already passed; the auction carries on without them
+	}
+	next := a.TurnID
+	if next == p.ID {
+		next = e.nextBidder(p.ID)
+	}
+	a.Active = append(a.Active[:idx:idx], a.Active[idx+1:]...)
+	if a.HighBidderID == p.ID {
+		a.HighBid, a.HighBidderID = 0, ""
+	}
+	e.emit(BidPassed{PlayerID: p.ID, NextTurnID: next})
+	e.advanceAuction(next)
+}
+
+// eliminate strips a player of everything and marks them bankrupt. Assets go
+// to the creditor of their first outstanding debt, or to the bank (deeds are
+// queued for auction when the rules allow). It does not move play on; the
+// caller decides how the game continues.
+func (e *engine) eliminate(p *Player, reason string) {
 	s := e.s
 	creditorID := ""
 	for _, d := range s.Debts {
@@ -723,13 +805,5 @@ func (e *engine) declareBankruptcy(p *Player) error {
 	p.JailCards = []string{}
 	p.Bankrupt = true
 	p.InJail = false
-	e.emit(PlayerBankrupt{PlayerID: p.ID, CreditorID: creditorID})
-
-	if e.checkGameEnd() {
-		return nil
-	}
-	if len(s.Debts) == 0 {
-		e.resumeAfterDebts()
-	}
-	return nil
+	e.emit(PlayerBankrupt{PlayerID: p.ID, CreditorID: creditorID, Reason: reason})
 }

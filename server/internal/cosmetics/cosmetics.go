@@ -177,7 +177,7 @@ func Seed(ctx context.Context, st store.Store) error {
 		// glTF-backed items: models ship with the client (packages/board-assets).
 		{ID: "token.tophat", Slot: "token", Name: "Top Hat", Description: "A proper gentleman's token (glTF).", PriceCents: 249, Currency: "usd", Manifest: m(map[string]any{"model": map[string]any{"builtin": "tophat"}, "material": map[string]any{"metalness": 0.1, "roughness": 0.6}}), SortOrder: 7},
 		{ID: "token.rocket", Slot: "token", Name: "Rocket", Description: "To the moon (glTF).", TierRequired: entitlement.TierPremium, Manifest: m(map[string]any{"model": map[string]any{"builtin": "rocket"}, "material": map[string]any{"metalness": 0.7, "roughness": 0.3}}), SortOrder: 8},
-		{ID: "board.classic", Slot: "board", Name: "Classic Board", Manifest: m(map[string]any{"builtin": "board.classic"}), SortOrder: 10},
+		{ID: "board.classic", Slot: "board", Name: "Harbourside Board", Description: "Sand tiles on a deep-water table.", Manifest: m(map[string]any{"builtin": "board.classic"}), SortOrder: 10},
 		{ID: "board.midnight", Slot: "board", Name: "Midnight Board", Description: "Dark table, neon accents.", TierRequired: entitlement.TierPremium, Manifest: m(map[string]any{"builtin": "board.midnight"}), SortOrder: 11},
 		{ID: "dice.ivory", Slot: "dice", Name: "Ivory Dice", Manifest: m(map[string]any{"builtin": "dice.ivory"}), SortOrder: 20},
 		{ID: "dice.onyx", Slot: "dice", Name: "Onyx Dice", PriceCents: 149, Currency: "usd", Manifest: m(map[string]any{"builtin": "dice.onyx"}), SortOrder: 21},

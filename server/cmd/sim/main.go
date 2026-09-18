@@ -22,10 +22,11 @@ func main() {
 	players := flag.Int("players", 4, "players per game (2-8)")
 	maxSteps := flag.Int("max-steps", 20000, "commands per game before declaring a stall")
 	turnLimit := flag.Int("turn-limit", 0, "optional turn limit house rule (0 = none)")
+	surrender := flag.Int("surrender", 0, "if >0, roughly one in N commands is a random active player surrendering")
 	verbose := flag.Bool("v", false, "print per-game summaries")
 	flag.Parse()
 
-	cfg := game.ClassicConfig()
+	cfg := game.HarboursideConfig()
 	cfg.Rules.TurnLimit = *turnLimit
 	profiles := []bot.Profile{bot.Balanced, bot.Aggressive, bot.Cautious}
 
@@ -59,6 +60,24 @@ func main() {
 		var lastCmd game.Command
 		for s.Turn.Phase != game.PhaseGameOver && steps < *maxSteps {
 			progressed := false
+			// Surrender fuzz: any active player may quit in any phase, waited on or not.
+			if *surrender > 0 && rng.IntN(*surrender) == 0 {
+				active := s.ActivePlayers()
+				cmd := &game.Surrender{Base: game.Base{PlayerID: active[rng.IntN(len(active))].ID}}
+				lastCmd = cmd
+				if _, err := game.Apply(s, cmd, rng); err != nil {
+					failures++
+					report(g, gameSeed, s, cmd, fmt.Errorf("apply: %w", err))
+					break
+				}
+				if err := game.CheckInvariants(s); err != nil {
+					failures++
+					report(g, gameSeed, s, cmd, fmt.Errorf("invariant: %w", err))
+					break
+				}
+				steps++
+				continue
+			}
 			for _, pid := range game.WaitingOn(s) {
 				cmd := bots[pid].Decide(s)
 				if cmd == nil {

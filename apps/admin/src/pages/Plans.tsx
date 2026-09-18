@@ -24,7 +24,13 @@ export default function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   useEffect(() => {
-    api<{ plans: Plan[] }>("GET", "/admin/api/plans").then((r) => setPlans(r.plans.sort((a, b) => a.tier.localeCompare(b.tier))));
+    api<{ plans: Plan[] }>("GET", "/admin/api/plans").then((r) =>
+      setPlans(
+        r.plans
+          .map((p) => ({ ...p, caps: { ...p.caps, cosmeticSlots: p.caps.cosmeticSlots ?? [] } }))
+          .sort((a, b) => a.tier.localeCompare(b.tier)),
+      ),
+    );
   }, []);
 
   const set = (tier: string, patch: Partial<Plan> | { caps: Partial<Caps> }) =>

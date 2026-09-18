@@ -91,6 +91,43 @@ func TestClassicConfigValid(t *testing.T) {
 	}
 }
 
+// The shipped board must validate and keep the classic layout (types, groups,
+// prices, rents) at every index so the engine tests above describe it too.
+func TestHarboursideConfigMatchesClassicLayout(t *testing.T) {
+	h, c := HarboursideConfig(), ClassicConfig()
+	if err := h.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for i := range c.Spaces {
+		hs, cs := h.Spaces[i], c.Spaces[i]
+		if hs.Type != cs.Type || hs.Price != cs.Price || hs.HouseCost != cs.HouseCost || hs.TaxAmount != cs.TaxAmount || hs.Rent != cs.Rent {
+			t.Fatalf("space %d differs from classic layout: %+v vs %+v", i, hs, cs)
+		}
+		if (hs.Group == "") != (cs.Group == "") {
+			t.Fatalf("space %d group presence differs", i)
+		}
+		if hs.Name == cs.Name && cs.Type == SpaceStreet {
+			t.Fatalf("space %d reuses the classic name %q", i, cs.Name)
+		}
+	}
+	if len(h.Chance) != len(c.Chance) || len(h.CommunityChest) != len(c.CommunityChest) {
+		t.Fatalf("deck sizes differ")
+	}
+	for i := range c.Chance {
+		if h.Chance[i].Effect != c.Chance[i].Effect || h.Chance[i].Target != c.Chance[i].Target || h.Chance[i].Amount != c.Chance[i].Amount {
+			t.Fatalf("tide card %d differs in effect from classic chance %d", i, i)
+		}
+	}
+	for i := range c.CommunityChest {
+		if h.CommunityChest[i].Effect != c.CommunityChest[i].Effect || h.CommunityChest[i].Amount != c.CommunityChest[i].Amount {
+			t.Fatalf("harbour fund card %d differs in effect from classic chest %d", i, i)
+		}
+	}
+	if h.Rules != c.Rules {
+		t.Fatalf("rules differ")
+	}
+}
+
 func TestNewGame(t *testing.T) {
 	s := newTest(t, 3)
 	if s.Players[0].Cash != 1500 || s.Bank.Houses != 32 || s.Bank.Hotels != 12 {
@@ -419,12 +456,28 @@ func TestTrade(t *testing.T) {
 	if s.Trade != nil {
 		t.Fatal("trade should be cleared")
 	}
+	// A pending trade pauses the game: nothing but answering it is legal.
 	ap(t, s, &ProposeTrade{Base: Base{"b"}, ToID: "a", Give: TradeSide{Cash: 5}}, nil)
 	s.Turn.Phase = PhasePostRoll
-	evs := ap(t, s, &EndTurn{Base{"a"}}, nil)
-	if _, ok := hasEvent[TradeRejected](evs); !ok || s.Trade != nil {
-		t.Fatal("pending trade should be cancelled at turn end")
+	apErr(t, ErrInvalid, s, &EndTurn{Base{"a"}}, nil)
+	apErr(t, ErrInvalid, s, &ProposeTrade{Base: Base{"b"}, ToID: "a", Give: TradeSide{Cash: 5}}, nil)
+	if got := WaitingOn(s); len(got) != 1 || got[0] != "a" {
+		t.Fatalf("waiting on %v, want only the recipient", got)
 	}
+	for _, a := range LegalActions(s, "a") {
+		if a.Type != "AcceptTrade" && a.Type != "RejectTrade" && a.Type != "Surrender" {
+			t.Fatalf("unexpected legal action %s during a trade", a.Type)
+		}
+	}
+	if acts := LegalActions(s, "b"); len(acts) != 2 || acts[0].Type != "Surrender" || acts[1].Type != "RejectTrade" {
+		t.Fatalf("proposer should only be able to withdraw (or leave), got %v", acts)
+	}
+	// The proposer may withdraw, after which play resumes.
+	ap(t, s, &RejectTrade{Base{"b"}, s.Trade.ID}, nil)
+	if s.Trade != nil {
+		t.Fatal("trade should be cleared")
+	}
+	ap(t, s, &EndTurn{Base{"a"}}, nil)
 }
 
 func TestDebtLiquidationRules(t *testing.T) {
@@ -666,9 +719,149 @@ func TestLegalActionsPreRoll(t *testing.T) {
 	if !types["RollDice"] || !types["ProposeTrade"] || types["EndTurn"] {
 		t.Fatalf("pre-roll actions: %v", acts)
 	}
-	if len(LegalActions(s, "b")) != 1 { // only ProposeTrade
-		t.Fatalf("b should only be able to propose a trade: %v", LegalActions(s, "b"))
+	if acts := LegalActions(s, "b"); len(acts) != 2 || acts[0].Type != "Surrender" || acts[1].Type != "ProposeTrade" {
+		t.Fatalf("b should only be able to surrender or propose a trade: %v", acts)
 	}
+}
+
+func TestSurrenderOnOwnTurnToBank(t *testing.T) {
+	s := newTest(t, 3)
+	s.Spaces[1].OwnerID, s.Spaces[3].OwnerID = "a", "a"
+	s.Spaces[1].Houses, s.Spaces[3].Houses = 2, 2
+	s.Bank.Houses -= 4
+	s.Players[0].JailCards = []string{s.Decks.Chance[0]}
+	s.Decks.Chance = s.Decks.Chance[1:]
+	ap(t, s, &RollDice{Base{"a"}}, dice([2]int{4, 5})) // Vermont, unowned
+	expectPhase(t, s, PhaseResolving)
+	evs := ap(t, s, &Surrender{Base{"a"}}, nil)
+	pb, ok := hasEvent[PlayerBankrupt](evs)
+	if !ok || pb.Reason != "surrender" || pb.CreditorID != "" {
+		t.Fatalf("expected a bank surrender event, got %+v", evs)
+	}
+	a := s.Players[0]
+	if !a.Bankrupt || a.Cash != 0 || len(a.JailCards) != 0 || len(s.OwnedBy("a")) != 0 {
+		t.Fatalf("surrendered player still holds assets: %+v", a)
+	}
+	if s.Bank.Houses != s.cfg.Rules.HouseSupply {
+		t.Fatal("buildings should return to the bank")
+	}
+	// The freed deeds are auctioned first; a's abandoned purchase lapses.
+	expectPhase(t, s, PhaseAuction)
+	if s.Auction.SpaceIndex != 1 || len(s.Auction.Active) != 2 {
+		t.Fatalf("auction: %+v", s.Auction)
+	}
+	ap(t, s, &PassBid{Base{s.Auction.TurnID}}, nil)
+	ap(t, s, &PassBid{Base{s.Auction.TurnID}}, nil)
+	expectPhase(t, s, PhaseAuction)
+	if s.Auction.SpaceIndex != 3 {
+		t.Fatalf("second auction: %+v", s.Auction)
+	}
+	ap(t, s, &PlaceBid{Base{s.Auction.TurnID}, 10}, nil)
+	ap(t, s, &PassBid{Base{s.Auction.TurnID}}, nil)
+	expectPhase(t, s, PhasePreRoll)
+	if s.CurrentPlayer().ID != "b" || s.Spaces[9].OwnerID != "" {
+		t.Fatalf("expected b's turn with Vermont unowned, got %s / %+v", s.CurrentPlayer().ID, s.Spaces[9])
+	}
+	if err := CheckInvariants(s); err != nil {
+		t.Fatal(err)
+	}
+	apErr(t, ErrInvalid, s, &Surrender{Base{"a"}}, nil) // already out
+}
+
+func TestSurrenderOffTurnKeepsPhase(t *testing.T) {
+	s := newTest(t, 3)
+	s.cfg.Rules.AuctionsEnabled = false
+	ap(t, s, &RollDice{Base{"a"}}, dice([2]int{4, 5}))
+	expectPhase(t, s, PhaseResolving)
+	ap(t, s, &Surrender{Base{"c"}}, nil)
+	expectPhase(t, s, PhaseResolving)
+	if s.CurrentPlayer().ID != "a" || !s.Players[2].Bankrupt {
+		t.Fatal("a should still be deciding on the purchase")
+	}
+	ap(t, s, &BuyProperty{Base{"a"}}, nil)
+	ap(t, s, &EndTurn{Base{"a"}}, nil)
+	if s.CurrentPlayer().ID != "b" {
+		t.Fatalf("expected b's turn, got %s", s.CurrentPlayer().ID)
+	}
+	ap(t, s, &RollDice{Base{"b"}}, dice([2]int{1, 2}))
+	ap(t, s, &DeclineBuy{Base{"b"}}, nil)
+	ap(t, s, &EndTurn{Base{"b"}}, nil)
+	if s.CurrentPlayer().ID != "a" {
+		t.Fatalf("c should be skipped, got %s", s.CurrentPlayer().ID)
+	}
+	if err := CheckInvariants(s); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSurrenderLastOpponentEndsGame(t *testing.T) {
+	s := newTest(t, 2)
+	evs := ap(t, s, &Surrender{Base{"b"}}, nil)
+	if ge, ok := hasEvent[GameEnded](evs); !ok || ge.WinnerID != "a" || ge.Reason != "last_standing" {
+		t.Fatalf("expected a to win, got %+v", evs)
+	}
+	expectPhase(t, s, PhaseGameOver)
+}
+
+func TestSurrenderDuringAuctionWithdrawsBid(t *testing.T) {
+	s := newTest(t, 3)
+	ap(t, s, &RollDice{Base{"a"}}, dice([2]int{1, 2})) // Baltic
+	ap(t, s, &DeclineBuy{Base{"a"}}, nil)
+	ap(t, s, &PlaceBid{Base{"b"}, 40}, nil) // b is high bidder, c's bid
+	evs := ap(t, s, &Surrender{Base{"b"}}, nil)
+	if _, ok := hasEvent[BidPassed](evs); !ok {
+		t.Fatal("leaving an auction should read as a pass")
+	}
+	expectPhase(t, s, PhaseAuction)
+	a := s.Auction
+	if a.HighBid != 0 || a.HighBidderID != "" || len(a.Active) != 2 || a.TurnID != "c" {
+		t.Fatalf("b's bid should be withdrawn: %+v", a)
+	}
+	ap(t, s, &PlaceBid{Base{"c"}, 10}, nil)
+	ap(t, s, &PassBid{Base{"a"}}, nil)
+	if s.Spaces[3].OwnerID != "c" || s.Players[2].Cash != 1490 {
+		t.Fatalf("c should win Baltic for 10: %+v cash=%d", s.Spaces[3], s.Players[2].Cash)
+	}
+	expectPhase(t, s, PhasePostRoll)
+
+	// The current player leaving mid-auction: the auction finishes, then the turn passes.
+	s = newTest(t, 3)
+	ap(t, s, &RollDice{Base{"a"}}, dice([2]int{1, 2}))
+	ap(t, s, &DeclineBuy{Base{"a"}}, nil)
+	ap(t, s, &PlaceBid{Base{"b"}, 40}, nil)
+	ap(t, s, &Surrender{Base{"a"}}, nil)
+	expectPhase(t, s, PhaseAuction)
+	if s.Auction.TurnID != "c" {
+		t.Fatalf("expected c's bid, got %s", s.Auction.TurnID)
+	}
+	ap(t, s, &PassBid{Base{"c"}}, nil)
+	expectPhase(t, s, PhasePreRoll)
+	if s.CurrentPlayer().ID != "b" || s.Spaces[3].OwnerID != "b" {
+		t.Fatalf("expected b to win and take the turn: %s %+v", s.CurrentPlayer().ID, s.Spaces[3])
+	}
+	if err := CheckInvariants(s); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSurrenderWithPendingTrade(t *testing.T) {
+	s := newTest(t, 3)
+	s.Spaces[1].OwnerID = "a"
+	ap(t, s, &ProposeTrade{Base: Base{"a"}, ToID: "b", Give: TradeSide{Properties: []int{1}}, Receive: TradeSide{Cash: 50}}, nil)
+	if s.Trade == nil {
+		t.Fatal("trade should be pending")
+	}
+	// An uninvolved player may still leave; the trade stays open.
+	ap(t, s, &Surrender{Base{"c"}}, nil)
+	if s.Trade == nil || s.Turn.Phase != PhasePreRoll {
+		t.Fatalf("trade should survive c leaving: %+v %s", s.Trade, s.Turn.Phase)
+	}
+	// The recipient leaving ends the game (a is last standing).
+	evs := ap(t, s, &Surrender{Base{"b"}}, nil)
+	if _, ok := hasEvent[TradeRejected](evs); !ok {
+		t.Fatal("trade should be cancelled when a party leaves")
+	}
+	expectPhase(t, s, PhaseGameOver)
 }
 
 func TestTurnLimitEndsByNetWorth(t *testing.T) {
@@ -719,5 +912,75 @@ func TestInvariantsHoldAcrossScenarios(t *testing.T) {
 	ap(t, s, &BuyProperty{Base{"a"}}, nil)
 	if err := CheckInvariants(s); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// owesRent puts the current player on Baltic Avenue (hotel: rent 450) with
+// 300 cash after passing Go, so they owe the owner 150 more than they hold.
+func owesRent(t *testing.T, s *State, debtor, owner string) {
+	t.Helper()
+	s.Spaces[3].OwnerID = owner
+	s.Spaces[3].Houses = 5
+	s.Bank.Hotels--
+	d := s.PlayerByID(debtor)
+	d.Cash = 100
+	d.Position = 38
+	ap(t, s, &RollDice{Base{debtor}}, dice([2]int{1, 4})) // 38+5 wraps to 3, +200 salary
+	expectPhase(t, s, PhaseRaisingFunds)
+	if len(s.Debts) != 1 || s.Debts[0].DebtorID != debtor || s.Debts[0].CreditorID != owner || s.Debts[0].Amount != 450 {
+		t.Fatalf("expected %s to owe %s 450, got %+v", debtor, owner, s.Debts)
+	}
+}
+
+func TestSurrenderWhileOwingPaysCreditor(t *testing.T) {
+	s := newTest(t, 3)
+	for _, sp := range []int{6, 8, 9} { // mortgage value 160: a could still raise the rent
+		s.Spaces[sp].OwnerID = "a"
+	}
+	owesRent(t, s, "a", "b")
+	apErr(t, ErrInvalid, s, &DeclareBankruptcy{Base{"a"}}, nil) // solvent: must sell or mortgage
+	evs := ap(t, s, &Surrender{Base{"a"}}, nil)
+	if pb, ok := hasEvent[PlayerBankrupt](evs); !ok || pb.CreditorID != "b" || pb.Reason != "surrender" {
+		t.Fatalf("expected surrender to b, got %+v", evs)
+	}
+	b := s.PlayerByID("b")
+	if b.Cash != 1500+300 || len(s.OwnedBy("b")) != 4 || len(s.OwnedBy("a")) != 0 {
+		t.Fatalf("b should inherit a's cash and deeds: cash=%d owns=%v", b.Cash, s.OwnedBy("b"))
+	}
+	if len(s.Debts) != 0 || len(s.PendingAuctions) != 0 {
+		t.Fatalf("nothing should be owed or auctioned: %+v %v", s.Debts, s.PendingAuctions)
+	}
+	expectPhase(t, s, PhasePreRoll)
+	if s.CurrentPlayer().ID != "b" {
+		t.Fatalf("expected b's turn, got %s", s.CurrentPlayer().ID)
+	}
+	if err := CheckInvariants(s); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSurrenderCreditorSendsDebtToBank(t *testing.T) {
+	s := newTest(t, 3)
+	s.Turn.PlayerIdx = 1 // b's turn
+	owesRent(t, s, "b", "a")
+	// The creditor leaves: b still owes the money, now to the bank, and
+	// a's hotel goes back to the bank before Baltic is queued for auction.
+	ap(t, s, &Surrender{Base{"a"}}, nil)
+	expectPhase(t, s, PhaseRaisingFunds)
+	if len(s.Debts) != 1 || s.Debts[0].CreditorID != "" || s.Debts[0].Amount != 450 {
+		t.Fatalf("debt should pass to the bank: %+v", s.Debts)
+	}
+	if s.Spaces[3].OwnerID != "" || s.Spaces[3].Houses != 0 || s.Bank.Hotels != s.cfg.Rules.HotelSupply {
+		t.Fatalf("Baltic should be freed: %+v hotels=%d", s.Spaces[3], s.Bank.Hotels)
+	}
+	if w := WaitingOn(s); len(w) != 1 || w[0] != "b" {
+		t.Fatalf("still waiting on b, got %v", w)
+	}
+	if err := CheckInvariants(s); err != nil {
+		t.Fatal(err)
+	}
+	evs := ap(t, s, &DeclareBankruptcy{Base{"b"}}, nil)
+	if ge, ok := hasEvent[GameEnded](evs); !ok || ge.WinnerID != "c" {
+		t.Fatalf("c should be last standing: %+v", evs)
 	}
 }

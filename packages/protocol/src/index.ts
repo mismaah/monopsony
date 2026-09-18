@@ -32,6 +32,7 @@ export interface CommandPayloads {
   PayJailFine: Record<string, never>;
   UseJailCard: Record<string, never>;
   DeclareBankruptcy: Record<string, never>;
+  Surrender: Record<string, never>;
 }
 export type CommandType = keyof CommandPayloads;
 

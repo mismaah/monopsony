@@ -15,30 +15,61 @@ export class GameSocket {
   private joined = new Map<string, number>(); // gameId -> lastSeq seen
   private backoff = 500;
   private closed = false;
+  private opening = false;
   status: "connecting" | "open" | "closed" = "closed";
   onStatus?: (s: GameSocket["status"]) => void;
 
   connect() {
     this.closed = false;
-    this.open();
+    void this.open();
   }
 
   close() {
     this.closed = true;
-    this.ws?.close();
+    const ws = this.ws;
     this.ws = null;
+    ws?.close();
+    this.pending.forEach((p) => p.reject(new SocketError("disconnected", "connection closed")));
+    this.pending.clear();
+    this.setStatus("closed");
   }
 
+  /**
+   * open establishes the single connection. It is idempotent: a socket that
+   * is already connecting/open is left alone (StrictMode runs the bootstrap
+   * effect twice, and every reconnect timer lands here too). Each socket's
+   * handlers ignore themselves once it is no longer `this.ws`, so a stale
+   * socket can never re-subscribe or spawn another reconnect. Without these
+   * guards several sockets end up subscribed to the same game and every
+   * event is delivered (and animated) once per socket.
+   */
   private async open() {
-    if (this.closed) return;
-    let token = getAccessToken();
-    if (!token && (await refreshSession())) token = getAccessToken();
-    if (!token) return;
-    this.setStatus("connecting");
-    const proto = location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${proto}://${location.host}/ws?token=${encodeURIComponent(token)}`);
-    this.ws = ws;
+    if (this.closed || this.opening) return;
+    if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) return;
+    this.opening = true;
+    try {
+      let token = getAccessToken();
+      if (!token && (await refreshSession())) token = getAccessToken();
+      if (!token || this.closed) return;
+      // Re-check: close()/connect() may have raced with the token refresh above.
+      if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) return;
+      this.setStatus("connecting");
+      const proto = location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${proto}://${location.host}/ws?token=${encodeURIComponent(token)}`);
+      this.ws = ws;
+      this.attach(ws);
+    } finally {
+      this.opening = false;
+    }
+  }
+
+  private attach(ws: WebSocket) {
+    const current = () => this.ws === ws;
     ws.onopen = () => {
+      if (!current()) {
+        ws.close();
+        return;
+      }
       this.backoff = 500;
       this.setStatus("open");
       // Re-subscribe after a reconnect, asking only for the events we missed.
@@ -47,6 +78,7 @@ export class GameSocket {
       }
     };
     ws.onmessage = (m) => {
+      if (!current()) return;
       const env = JSON.parse(m.data) as Envelope;
       if (env.ref && (env.t === "Ack" || env.t === "Error")) {
         const p = this.pending.get(env.ref);
@@ -83,11 +115,13 @@ export class GameSocket {
       this.handlers.get("*")?.forEach((h) => h(env.p, env));
     };
     ws.onclose = () => {
+      if (!current()) return; // superseded or closed on purpose
+      this.ws = null;
       this.setStatus("closed");
       this.pending.forEach((p) => p.reject(new SocketError("disconnected", "connection lost")));
       this.pending.clear();
       if (!this.closed) {
-        setTimeout(() => this.open(), this.backoff);
+        setTimeout(() => void this.open(), this.backoff);
         this.backoff = Math.min(this.backoff * 2, 8000);
       }
     };

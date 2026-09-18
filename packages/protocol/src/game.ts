@@ -286,6 +286,7 @@ export interface DebtSettled {
 export interface PlayerBankrupt {
   playerId: string;
   creditorId?: string;
+  reason?: string; // "insolvent" | "surrender"
 }
 export interface FreeParkingCollected {
   playerId: string;
@@ -310,6 +311,10 @@ export interface EventEnvelope {
   type: string;
   payload: unknown;
 }
+
+//////////
+// source: harbourside.go
+
 
 //////////
 // source: legal.go

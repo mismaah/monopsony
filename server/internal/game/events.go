@@ -171,6 +171,7 @@ type (
 	PlayerBankrupt struct {
 		PlayerID   string `json:"playerId"`
 		CreditorID string `json:"creditorId,omitempty"`
+		Reason     string `json:"reason,omitempty"` // "insolvent" | "surrender"
 	}
 	FreeParkingCollected struct {
 		PlayerID string `json:"playerId"`

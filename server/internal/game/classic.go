@@ -1,8 +1,9 @@
 package game
 
-// ClassicConfig returns the standard US board, decks and rules. It is the test
-// fixture and the seed for the first admin-published config; admins are
-// expected to rename/retheme everything before shipping.
+// ClassicConfig returns the standard US board, decks and rules. It is the
+// engine test fixture only: the names and card texts are Hasbro's, so nothing
+// ships with it. The published default is HarboursideConfig, which shares this
+// layout space-for-space.
 func ClassicConfig() *Config {
 	st := func(i int, name, group, color string, price, house int, rent [6]int) SpaceDef {
 		return SpaceDef{Index: i, Name: name, Type: SpaceStreet, Group: group, Color: color, Price: price, HouseCost: house, Rent: rent}

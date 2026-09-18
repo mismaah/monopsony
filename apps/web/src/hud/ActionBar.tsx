@@ -19,14 +19,17 @@ function Countdown({ deadline }: { deadline: number }) {
  * ActionBar renders whatever the server says is legal for this player right
  * now, plus a one-line description of what the table is waiting for.
  */
-export function ActionBar({ onTrade }: { onTrade: () => void }) {
+export function ActionBar({ onTrade, onRaiseFunds }: { onTrade: () => void; onRaiseFunds: () => void }) {
   const { state, config, legal, waitingOn, deadline, animating, error } = useGame();
   const me = useAuth((s) => s.user);
   const [bid, setBid] = useState(0);
+  const [confirmSurrender, setConfirmSurrender] = useState(false);
   if (!state || !config || !me) return null;
 
   const has = (t: string) => legal.some((a) => a.type === t);
   const act = (t: string) => legal.find((a) => a.type === t);
+  // Surrender is always on the table, so it must not count as "something to do".
+  const idle = !legal.some((a) => a.type !== "Surrender");
   const current = state.players[state.turn.playerIdx];
   const myTurn = current?.id === me.id;
   const phase = state.turn.phase;
@@ -34,8 +37,19 @@ export function ActionBar({ onTrade }: { onTrade: () => void }) {
   const iAmWaited = waitingOn.includes(me.id);
   const busy = animating; // let the animation finish before offering the next action
 
+  const trade = state.trade;
+  const tradeForMe = trade && trade.toId === me.id;
+  const name = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
+
   let headline: string;
-  switch (phase) {
+  // A pending trade pauses the game, so it takes over the headline.
+  if (trade) {
+    headline = tradeForMe
+      ? `${name(trade.fromId)} offers you a trade — accept or reject`
+      : trade.fromId === me.id
+        ? `Waiting for ${name(trade.toId)} to answer your offer`
+        : `${name(trade.toId)} is considering ${name(trade.fromId)}'s offer`;
+  } else switch (phase) {
     case "pre_roll":
       headline = myTurn ? (current.inJail ? "You're in jail" : "Your turn — roll the dice") : `${current.name} is rolling`;
       break;
@@ -54,7 +68,7 @@ export function ActionBar({ onTrade }: { onTrade: () => void }) {
     case "raising_funds": {
       const d = state.debts?.[0];
       const owed = d ? `$${d.amount}` : "";
-      headline = iAmWaited ? `You owe ${owed} — sell, mortgage, or trade to raise it` : `${waitingNames.join(", ")} must raise funds`;
+      headline = iAmWaited ? `You owe ${owed} — raise it or declare bankruptcy` : `${waitingNames.join(", ")} must raise funds`;
       break;
     }
     case "game_over":
@@ -64,15 +78,40 @@ export function ActionBar({ onTrade }: { onTrade: () => void }) {
       headline = "";
   }
 
-  const trade = state.trade;
-  const tradeForMe = trade && trade.toId === me.id;
-
   return (
     <div className="bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 min-w-[420px] max-w-[680px]">
       <div className="flex items-center gap-3 mb-2">
         <span className="text-sm font-medium">{headline}</span>
         <span className="flex-1" />
         <Countdown deadline={deadline} />
+        {has("Surrender") &&
+          (confirmSurrender ? (
+            <span className="flex items-center gap-1 text-xs">
+              <span className="text-rose-300">Give up and leave the game?</span>
+              <Button
+                variant="danger"
+                className="px-2 py-0.5 text-xs"
+                onClick={() => {
+                  setConfirmSurrender(false);
+                  void send("Surrender");
+                }}
+              >
+                Surrender
+              </Button>
+              <Button variant="ghost" className="px-2 py-0.5 text-xs" onClick={() => setConfirmSurrender(false)}>
+                Keep playing
+              </Button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="text-xs text-slate-500 hover:text-rose-300 transition"
+              title="Declare bankruptcy and leave the game"
+              onClick={() => setConfirmSurrender(true)}
+            >
+              Surrender
+            </button>
+          ))}
       </div>
       {error && <div className="text-rose-400 text-xs mb-2">{error}</div>}
       <div className="flex flex-wrap gap-2 items-center">
@@ -97,6 +136,7 @@ export function ActionBar({ onTrade }: { onTrade: () => void }) {
           </div>
         )}
         {has("PassBid") && <Button variant="secondary" disabled={busy} onClick={() => send("PassBid")}>Pass</Button>}
+        {phase === "raising_funds" && iAmWaited && <Button disabled={busy} onClick={onRaiseFunds}>Raise funds…</Button>}
         {has("EndTurn") && <Button disabled={busy} onClick={() => send("EndTurn")}>{state.turn.canRollAgain ? "Continue" : "End turn"}</Button>}
         {has("ProposeTrade") && <Button variant="secondary" disabled={busy} onClick={onTrade}>Trade…</Button>}
         {has("DeclareBankruptcy") && <Button variant="danger" disabled={busy} onClick={() => send("DeclareBankruptcy")}>Declare bankruptcy</Button>}
@@ -109,7 +149,12 @@ export function ActionBar({ onTrade }: { onTrade: () => void }) {
         {trade && trade.fromId === me.id && (
           <Button variant="ghost" onClick={() => send("RejectTrade", { tradeId: trade.id })}>Cancel trade</Button>
         )}
-        {legal.length === 0 && phase !== "game_over" && <span className="text-xs text-slate-500">Waiting for {waitingNames.join(", ")}…</span>}
+        {idle && phase !== "game_over" && (
+          <span className="text-xs text-slate-500">
+            {state.players.find((p) => p.id === me.id)?.bankrupt && "You're out of the game — spectating. "}
+            Waiting for {waitingNames.join(", ")}…
+          </span>
+        )}
       </div>
     </div>
   );

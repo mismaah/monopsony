@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/store/auth";
+import { Mascot } from "@/brand";
 
 /**
  * AdSlot renders an ad for free-tier users and nothing for anyone else.
@@ -128,7 +129,7 @@ function HouseAd({ placement }: { placement: Placement }) {
   if (placement === "game") {
     return (
       <Link to="/shop" className="h-full flex items-center gap-3 px-3 bg-slate-900/80 border border-dashed border-slate-700 hover:border-emerald-500/60 text-xs text-slate-400">
-        <span className="text-lg">✨</span>
+        <Mascot size={40} className="shrink-0" />
         <span>
           <span className="text-slate-200">Tired of ads?</span> Go premium for private tables, 8 seats and house rules.
         </span>
@@ -136,7 +137,8 @@ function HouseAd({ placement }: { placement: Placement }) {
     );
   }
   return (
-    <Link to="/shop" className="block h-full p-4 bg-gradient-to-br from-emerald-900/40 to-slate-900 border border-emerald-500/30 hover:border-emerald-400/60">
+    <Link to="/shop" className="relative block h-full p-4 bg-gradient-to-br from-emerald-900/40 to-slate-900 border border-emerald-500/30 hover:border-emerald-400/60 overflow-hidden">
+      <Mascot size={96} className="absolute -right-3 -bottom-4 opacity-80" />
       <div className="text-xs uppercase tracking-wide text-emerald-300 mb-1">Monopsony Premium</div>
       <div className="font-semibold">No ads. Bigger tables. Your rules.</div>
       <p className="text-sm text-slate-400 mt-1">Private rooms, up to 8 players, house rules, every cosmetic slot and your full match history.</p>

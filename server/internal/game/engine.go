@@ -93,6 +93,16 @@ func Apply(s *State, cmd Command, rng RNG) ([]Event, error) {
 	if p.Bankrupt {
 		return nil, errf(ErrInvalid, "player is bankrupt")
 	}
+	// A pending trade pauses the game: nothing else may happen until the
+	// recipient answers or the proposer withdraws it. Surrendering is the
+	// one exception: a player may always leave.
+	if s.Trade != nil {
+		switch cmd.(type) {
+		case *AcceptTrade, *RejectTrade, *Surrender:
+		default:
+			return nil, errf(ErrInvalid, "a trade is pending")
+		}
+	}
 	e := &engine{s: s, rng: rng}
 	var err error
 	switch c := cmd.(type) {
@@ -128,6 +138,8 @@ func Apply(s *State, cmd Command, rng RNG) ([]Event, error) {
 		err = e.useJailCard(p)
 	case *DeclareBankruptcy:
 		err = e.declareBankruptcy(p)
+	case *Surrender:
+		err = e.surrender(p)
 	default:
 		err = errf(ErrInvalid, "unsupported command %T", cmd)
 	}

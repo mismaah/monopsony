@@ -248,7 +248,10 @@ function ConfigEditor() {
           {(["chance", "communityChest"] as const).map((deck) => (
             <div key={deck}>
               <div className="flex items-center mb-2">
-                <h3 className="font-medium capitalize">{deck === "chance" ? "Chance" : "Community Chest"}</h3>
+                <h3 className="font-medium">
+                  {cfg.spaces.find((s) => s.type === (deck === "chance" ? "chance" : "community_chest"))?.name ?? deck}
+                  <span className="ml-2 text-xs text-zinc-500 font-normal">{deck === "chance" ? "chance deck" : "community deck"}</span>
+                </h3>
                 <div className="flex-1" />
                 <Btn tone="secondary" onClick={() => update({ [deck]: [...cfg[deck], { id: `${deck.slice(0, 2)}${Date.now() % 100000}`, text: "New card", effect: "money", amount: 0 }] } as Partial<Config>)}>
                   + card

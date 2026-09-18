@@ -91,10 +91,18 @@ export function Dice({ faces, rollId, skin }: Props) {
 function Die({ materials, face, rollId, offset, seed }: { materials: THREE.Material[]; face: number; rollId: number; offset: [number, number, number]; seed: number }) {
   const ref = useRef<THREE.Mesh>(null);
   const first = useRef(true);
+  // Read through refs so the tumble effect only re-runs on a new roll, not
+  // whenever the parent re-renders with a fresh offset array.
+  const faceRef = useRef(face);
+  faceRef.current = face;
+  const offsetRef = useRef(offset);
+  offsetRef.current = offset;
 
   useEffect(() => {
     const m = ref.current;
     if (!m) return;
+    const face = faceRef.current;
+    const offset = offsetRef.current;
     const [rx, ry, rz] = UP_ROTATION[face] ?? [0, 0, 0];
     if (first.current || rollId === 0) {
       m.rotation.set(rx, ry, rz);
@@ -114,7 +122,7 @@ function Die({ materials, face, rollId, offset, seed }: { materials: THREE.Mater
     return () => {
       tl.kill();
     };
-  }, [rollId, face, offset, seed]);
+  }, [rollId, seed]);
 
   return (
     <mesh ref={ref} material={materials} castShadow position={[offset[0], 0.3, offset[2]]}>

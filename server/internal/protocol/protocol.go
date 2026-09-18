@@ -58,6 +58,7 @@ const (
 	SUpdate   = "Update"
 	SLobby    = "Lobby"
 	SChat     = "Chat"
+	SKicked   = "Kicked" // to the removed user only: they no longer hold a seat
 	SAck      = "Ack"
 	SError    = "Error"
 	SPong     = "Pong"
@@ -133,6 +134,13 @@ type ChatMessage struct {
 	Name     string `json:"name"`
 	Text     string `json:"text"`
 	At       int64  `json:"at"`
+}
+
+// Kicked tells a user the host removed them from a game. Mid-game their
+// seat carries on under a bot.
+type Kicked struct {
+	GameID   string `json:"gameId"`
+	PlayerID string `json:"playerId"`
 }
 
 type Ack struct {

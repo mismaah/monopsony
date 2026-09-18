@@ -7,7 +7,7 @@ test("publishing a config affects new games but not games in progress", async ({
   await createTable(page, "Old rules");
   await startWithBots(page, 1);
   const before = await store(page, (s) => ({ name: s.config!.spaces[39].name, cash: s.config!.rules.startCash }));
-  expect(before).toEqual({ name: "Boardwalk", cash: 1500 });
+  expect(before).toEqual({ name: "Captain's Reach", cash: 1500 });
 
   // Admin publishes a new version: renamed last street, bigger start cash.
   const token = await adminToken(request);
@@ -24,7 +24,7 @@ test("publishing a config affects new games but not games in progress", async ({
   // The running game is pinned to its version.
   await page.reload();
   await expect(page.locator("canvas").first()).toBeVisible();
-  await expect.poll(() => store(page, (s) => s.config?.spaces[39].name ?? null)).toBe("Boardwalk");
+  await expect.poll(() => store(page, (s) => s.config?.spaces[39].name ?? null)).toBe("Captain's Reach");
 
   // A new table picks up the published version. The free tier allows one
   // active game per user, so a second user (the admin) creates it.

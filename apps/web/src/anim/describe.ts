@@ -86,6 +86,10 @@ export function describeEvent(ev: GameEvent, n: Names): Line | null {
     case "DebtSettled":
       return { text: `${n.playerName(ev.payload.debt.debtorId)} settles $${ev.payload.debt.amount}`, kind: "money" };
     case "PlayerBankrupt":
+      if (ev.payload.reason === "surrender") {
+        const to = ev.payload.creditorId ? ` — everything goes to ${n.playerName(ev.payload.creditorId)}` : "";
+        return { text: `${who()} surrenders${to}`, kind: "alert" };
+      }
       return { text: `${who()} is bankrupt!`, kind: "alert" };
     case "FreeParkingCollected":
       return { text: `${who()} collects $${ev.payload.amount} from Free Parking`, kind: "money" };

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useGame } from "@/store/game";
 import { useAuth } from "@/store/auth";
 import { seatColors } from "@/lib/ui";
+import { api } from "@/api/http";
 
 /** Cash counter that ticks toward the animated balance. */
 function Counter({ value }: { value: number }) {
@@ -24,16 +25,28 @@ function Counter({ value }: { value: number }) {
 }
 
 export function PlayersRail() {
-  const { state, seats, cash, waitingOn } = useGame();
+  const { state, seats, cash, waitingOn, gameId, setError } = useGame();
   const me = useAuth((s) => s.user);
+  const [confirmKick, setConfirmKick] = useState<string | null>(null);
   if (!state) return null;
   const current = state.players[state.turn.playerIdx]?.id;
+  const isHost = !!seats.find((s) => s.playerId === me?.id)?.host;
+  const kick = async (playerId: string) => {
+    setConfirmKick(null);
+    try {
+      await api("DELETE", `/api/games/${gameId}/seats/${playerId}`);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
   return (
     <div className="flex flex-col gap-1.5 w-56">
       {state.players.map((p, i) => {
         const seat = seats.find((s) => s.playerId === p.id);
         const owned = state.spaces.filter((s) => s.ownerId === p.id).length;
         const waiting = waitingOn.includes(p.id);
+        // The host may hand any other human's seat to a bot.
+        const kickable = isHost && p.id !== me?.id && !p.bankrupt && !seat?.isBot && state.turn.phase !== "game_over";
         return (
           <div
             key={p.id}
@@ -51,7 +64,28 @@ export function PlayersRail() {
               ) : (
                 <span className={`w-1.5 h-1.5 rounded-full ${seat?.connected ? "bg-emerald-400" : "bg-slate-600"}`} title={seat?.connected ? "online" : "offline"} />
               )}
+              {kickable && confirmKick !== p.id && (
+                <button
+                  type="button"
+                  className="ml-1 text-slate-600 hover:text-rose-300 text-xs leading-none"
+                  title={`Remove ${p.name} (a bot takes over their seat)`}
+                  onClick={() => setConfirmKick(p.id)}
+                >
+                  ✕
+                </button>
+              )}
             </div>
+            {confirmKick === p.id && (
+              <div className="flex items-center gap-1 mt-1 text-xs">
+                <span className="text-rose-300 flex-1">Remove {p.name}? A bot takes the seat.</span>
+                <button type="button" className="px-1.5 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white" onClick={() => void kick(p.id)}>
+                  Remove
+                </button>
+                <button type="button" className="px-1.5 py-0.5 rounded hover:bg-slate-800 text-slate-300" onClick={() => setConfirmKick(null)}>
+                  Keep
+                </button>
+              </div>
+            )}
             <div className="flex items-center gap-2 text-sm text-slate-300 mt-0.5">
               <span className={p.bankrupt ? "line-through" : ""}>
                 <Counter value={cash[p.id] ?? p.cash} />

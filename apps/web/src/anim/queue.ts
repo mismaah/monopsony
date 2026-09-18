@@ -1,6 +1,8 @@
 import type { GameEvent } from "@monopsony/protocol";
 import { T } from "./timing";
 import { describeEvent } from "./describe";
+import { cuesFor } from "@/audio/cues";
+import { sfx } from "@/audio/sfx";
 
 /** The slice of the game store the queue reads and writes. */
 export interface QueueBinding {
@@ -12,6 +14,8 @@ export interface QueueBinding {
     config: { spaces: { name: string }[] } | null;
     state: { players: { id: string; name: string }[] } | null;
     seats: { playerId: string; name: string }[];
+    /** The viewer's player id, so "your turn" style cues can tell you apart. */
+    me: string | null;
   };
   set: (partial: Record<string, unknown>) => void;
 }
@@ -53,6 +57,7 @@ export class AnimationQueue {
     while (this.items.length && gen === this.gen) {
       const ev = this.items.shift()!;
       this.logLine(ev);
+      for (const c of cuesFor(ev, this.b.get().me)) sfx.play(c.name, c);
       try {
         await this.play(ev, gen);
       } catch (e) {
@@ -95,6 +100,7 @@ export class AnimationQueue {
         while (pos !== to && gen === this.gen) {
           pos = (pos + dir + BOARD) % BOARD;
           this.b.set({ positions: { ...this.b.get().positions, [playerId]: pos } });
+          sfx.play("step");
           await sleep(T.tokenStep);
         }
         break;

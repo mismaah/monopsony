@@ -1,5 +1,6 @@
-import { useMemo } from "react";
-import { Text } from "@react-three/drei";
+import { Suspense, useMemo } from "react";
+import { Text, useTexture } from "@react-three/drei";
+import * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { Config, State } from "@monopsony/protocol";
 import { TILES, HALF, DEPTH, bandSpot, ownerSpot, buildingSpot, rotate } from "./layout";
@@ -18,7 +19,28 @@ interface Props {
 const FONT_URL = undefined; // drei's default (Roboto via CDN); swap for a bundled font in the asset pipeline
 
 function shortName(name: string) {
-  return name.replace(" Avenue", " Ave").replace(" Railroad", " RR").replace("Community Chest", "Chest");
+  return name
+    .replace(" Avenue", " Ave")
+    .replace(" Railroad", " RR")
+    .replace("Community Chest", "Chest")
+    .replace(" Terrace", " Terr")
+    .replace(" Square", " Sq");
+}
+
+const CENTRE = HALF * 2 - DEPTH * 2 - 0.1; // side of the centre panel
+const EMBLEM = CENTRE * 0.62;
+
+/** The brand emblem printed in the middle of the board (public/brand/board-centre.png). */
+function CentreEmblem() {
+  const map = useTexture("/brand/board-centre.png");
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 8;
+  return (
+    <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
+      <planeGeometry args={[EMBLEM, EMBLEM]} />
+      <meshStandardMaterial map={map} transparent roughness={0.85} />
+    </mesh>
+  );
 }
 
 export function Board({ config, state, skin, highlight, selected, onSelect }: Props) {
@@ -41,18 +63,23 @@ export function Board({ config, state, skin, highlight, selected, onSelect }: Pr
       </mesh>
       {/* centre panel */}
       <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[HALF * 2 - DEPTH * 2 - 0.1, HALF * 2 - DEPTH * 2 - 0.1]} />
+        <planeGeometry args={[CENTRE, CENTRE]} />
         <meshStandardMaterial color={skin.centre} roughness={0.9} />
       </mesh>
+      <Suspense fallback={null}>
+        <CentreEmblem />
+      </Suspense>
+      {/* the board's name sits under the emblem, along the same diagonal, so a retheme still shows */}
       <Text
-        position={[0, 0.02, 0]}
+        position={[EMBLEM * 0.42, 0.02, EMBLEM * 0.42]}
         rotation={[-Math.PI / 2, 0, Math.PI / 4]}
-        fontSize={1.4}
+        fontSize={0.42}
         color={skin.text}
         anchorX="center"
         anchorY="middle"
         font={FONT_URL}
-        fillOpacity={0.35}
+        fillOpacity={0.6}
+        letterSpacing={0.15}
       >
         {config.name.toUpperCase()}
       </Text>

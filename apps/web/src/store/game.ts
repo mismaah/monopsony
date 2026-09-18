@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type { Action, Config, GameEvent, Lobby, SeatInfo, Snapshot, State, Update } from "@monopsony/protocol";
 import { socket } from "@/api/ws";
 import { AnimationQueue } from "@/anim/queue";
+import { useAuth } from "@/store/auth";
+import { sfx } from "@/audio/sfx";
 
 export interface LogLine {
   seq: number;
@@ -42,6 +44,8 @@ interface GameStore {
   chat: { name: string; text: string; at: number }[];
   animating: boolean;
   error: string | null;
+  /** Set when the host removed us from the open game; a bot has our seat. */
+  kicked: boolean;
 
   open: (gameId: string) => void;
   close: () => void;
@@ -50,6 +54,10 @@ interface GameStore {
 }
 
 const queue = new AnimationQueue();
+
+// Highest event seq handed to the queue. Events are strictly sequential, so
+// anything at or below it is a duplicate delivery and must not animate/log twice.
+let lastEventSeq = 0;
 
 export const useGame = create<GameStore>((set, get) => {
   // Wire socket handlers once. Snapshots reset the view; events animate it;
@@ -63,6 +71,7 @@ export const useGame = create<GameStore>((set, get) => {
     const s = p as Snapshot;
     if (s.gameId !== get().gameId || !s.state || !s.config) return;
     queue.clear();
+    lastEventSeq = s.state.seq;
     const positions: Record<string, number> = {};
     const cash: Record<string, number> = {};
     for (const pl of s.state.players) {
@@ -85,13 +94,19 @@ export const useGame = create<GameStore>((set, get) => {
   });
   socket.on("Event", (p) => {
     const ev = p as GameEvent & { gameId: string };
-    if (ev.gameId !== get().gameId) return;
+    if (ev.gameId !== get().gameId || ev.seq <= lastEventSeq) return;
+    lastEventSeq = ev.seq;
     queue.push(ev);
   });
   socket.on("Update", (p) => {
     const u = p as Update;
     if (u.gameId !== get().gameId || !u.state) return;
     set({ state: u.state, seats: u.seats, legal: u.actions ?? [], waitingOn: u.waitingOn ?? [], deadline: u.deadline ?? 0 });
+  });
+  socket.on("Kicked", (p) => {
+    const k = p as { gameId: string };
+    if (k.gameId !== get().gameId) return;
+    set({ kicked: true, legal: [] });
   });
   socket.on("Chat", (p) => {
     const c = p as { gameId: string; name: string; text: string; at: number };
@@ -100,7 +115,7 @@ export const useGame = create<GameStore>((set, get) => {
   });
 
   queue.bind({
-    get: () => get(),
+    get: () => ({ ...get(), me: useAuth.getState().user?.id ?? null }),
     set: (partial) => set(partial),
   });
 
@@ -123,13 +138,15 @@ export const useGame = create<GameStore>((set, get) => {
     chat: [],
     animating: false,
     error: null,
+    kicked: false,
 
     open(gameId) {
       if (get().gameId === gameId) return;
       const prev = get().gameId;
       if (prev) socket.leave(prev);
       queue.clear();
-      set({ gameId, lobby: null, config: null, state: null, seats: [], legal: [], log: [], chat: [], card: null, selectedSpace: null });
+      lastEventSeq = 0;
+      set({ gameId, lobby: null, config: null, state: null, seats: [], legal: [], log: [], chat: [], card: null, selectedSpace: null, kicked: false });
       socket.join(gameId);
     },
     close() {
@@ -142,6 +159,7 @@ export const useGame = create<GameStore>((set, get) => {
       set({ selectedSpace: space });
     },
     setError(e) {
+      if (e) sfx.play("error");
       set({ error: e });
     },
   };

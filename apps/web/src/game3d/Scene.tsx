@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useRef } from "react";
+import React, { Suspense, useEffect, useMemo, useRef } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, ContactShadows, Environment, AdaptiveDpr } from "@react-three/drei";
 import * as THREE from "three";
@@ -32,15 +32,17 @@ export function Scene({ follow }: { follow: boolean }) {
   const { config, state, seats, positions, dice, highlight, selectedSpace, select, waitingOn } = useGame();
   const me = useAuth((s) => s.user);
   const manifests = useCosmetics((s) => s.manifests);
+  const myLoadout = seats.find((s) => s.playerId === me?.id)?.loadout;
+  const board = resolveBoard(manifests, myLoadout?.board);
+  // Stable identity: Dice memoizes its materials on the skin object, and the
+  // scene re-renders on every token move.
+  const diceSkin = useMemo(() => resolveDice(manifests, myLoadout?.dice), [manifests, myLoadout?.dice]);
   // An Update (state only) can arrive a frame before the Snapshot that
   // carries the config, so this early return must come after every hook.
   if (!config || !state) return null;
   const activeId = state.turn.phase === "game_over" ? null : state.players[state.turn.playerIdx]?.id ?? null;
   const focusId = waitingOn[0] ?? activeId;
   const focusSpace = focusId ? positions[focusId] ?? null : null;
-  const myLoadout = seats.find((s) => s.playerId === me?.id)?.loadout;
-  const board = resolveBoard(manifests, myLoadout?.board);
-  const diceSkin = resolveDice(manifests, myLoadout?.dice);
 
   return (
     <Canvas shadows dpr={[1, 2]} camera={{ fov: 42, near: 0.1, far: 100 }} onPointerMissed={() => select(null)}>

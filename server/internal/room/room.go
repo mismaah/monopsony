@@ -50,7 +50,10 @@ type Subscriber interface {
 type Options struct {
 	BotDelay    time.Duration // pause before a bot acts, for animation pacing
 	TurnTimeout time.Duration // how long a human may take per decision
-	MaxTimeouts int           // consecutive timeouts before a bot takes the seat
+	// TradeTimeout is how long the recipient has to answer a trade offer. The
+	// turn clock is paused meanwhile. Zero means the same as TurnTimeout.
+	TradeTimeout time.Duration
+	MaxTimeouts  int // consecutive timeouts before a bot takes the seat
 	Logger      *slog.Logger
 	// Loadout resolves a user's equipped cosmetics; nil = none.
 	Loadout func(userID string) map[string]string
@@ -81,6 +84,12 @@ type Room struct {
 	timer     *time.Timer
 	botTimer  *time.Timer
 	seqGen    int // bot seat counter
+
+	// A pending trade pauses the turn clock: pausedTrade is the offer whose
+	// deadline is armed, pausedTurn/pausedLeft what to restore afterwards.
+	pausedTrade string
+	pausedTurn  int
+	pausedLeft  time.Duration
 }
 
 // New wraps a game record (lobby or in-progress) in a live room and starts
@@ -292,24 +301,59 @@ func botName(profile string, n int) string {
 	return fmt.Sprintf("%s (bot)", list[n%len(list)])
 }
 
-// Kick removes a seat (host only, lobby only).
+// Kick removes a player (host only). In the lobby the seat is freed; during
+// a game the seat is handed to a bot, exactly as after repeated timeouts, so
+// the table stays balanced. The kicked user is detached from the seat and
+// told so; they may keep watching but can no longer act or rejoin it.
 func (r *Room) Kick(byUserID, playerID string) error {
 	_, err := call(r, func() (struct{}, error) {
 		if err := r.requireHost(byUserID); err != nil {
 			return struct{}{}, err
 		}
-		if r.rec.Status != store.StatusLobby {
-			return struct{}{}, errf("game_started", "the game has already started")
+		if r.rec.Status == store.StatusFinished {
+			return struct{}{}, errf("game_over", "the game is over")
 		}
-		if playerID == byUserID {
-			return struct{}{}, errf("invalid", "use leave to remove yourself")
+		seat := r.seatByPlayer(playerID)
+		if seat == nil {
+			return struct{}{}, errf("not_found", "no such seat")
 		}
-		r.removeSeat(playerID)
-		r.persist()
+		if seat.UserID == byUserID {
+			return struct{}{}, errf("invalid", "use leave (or surrender) to remove yourself")
+		}
+		if r.rec.Status == store.StatusLobby {
+			r.removeSeat(playerID)
+			r.persist()
+			r.broadcastLobby()
+			return struct{}{}, nil
+		}
+		if seat.IsBot {
+			return struct{}{}, errf("invalid", "that seat is already played by a bot")
+		}
+		kicked := seat.UserID
+		seat.UserID = ""
+		delete(r.connected, playerID)
+		r.handToBot(seat)
+		r.log.Info("player kicked; seat handed to bot", "player", playerID, "by", byUserID)
+		for sub := range r.subs {
+			if sub.UserID() == kicked {
+				sub.Send(protocol.MustEncode(protocol.SKicked, "", protocol.Kicked{GameID: r.id, PlayerID: playerID}))
+			}
+		}
+		// Re-issue everyone's view (the kicked user now has no actions) and
+		// let the bot pick up the seat if it is being waited on.
+		r.afterChange(nil)
 		r.broadcastLobby()
 		return struct{}{}, nil
 	})
 	return err
+}
+
+// handToBot puts a cautious bot in charge of a human seat. Only the seat
+// record changes; the engine state is touched by commands alone.
+func (r *Room) handToBot(seat *store.SeatRecord) {
+	seat.IsBot = true
+	seat.BotProfile = bot.Cautious.Name
+	r.bots[seat.PlayerID] = bot.New(seat.PlayerID, bot.Cautious)
 }
 
 // SetReady toggles a lobby ready flag.
@@ -360,9 +404,12 @@ func (r *Room) StartGame(byUserID string) error {
 // Subscribe attaches a connection and sends it the current view.
 func (r *Room) Subscribe(sub Subscriber, lastSeq int) {
 	r.do(func() {
+		_, already := r.subs[sub]
 		r.subs[sub] = struct{}{}
 		if seat := r.seatOf(sub.UserID()); seat != nil {
-			r.connected[seat.PlayerID]++
+			if !already { // a re-sent JoinGame must not inflate the presence count
+				r.connected[seat.PlayerID]++
+			}
 			if lo := r.loadoutFor(sub.UserID()); lo != nil {
 				seat.Loadout = lo
 			}
@@ -695,14 +742,43 @@ func (r *Room) botStep() {
 	}
 }
 
-// armTimer sets the human decision deadline.
+// minResumeTime is the least a proposer gets back on their turn clock once a
+// trade resolves, so an offer made at the buzzer still leaves room to act.
+const minResumeTime = 5 * time.Second
+
+// armTimer sets the human decision deadline. A pending trade gets its own
+// TradeTimeout; the interrupted turn's remaining time is kept and restored
+// when the trade resolves, so trades neither eat nor extend the turn.
 func (r *Room) armTimer() {
 	if r.timer != nil {
 		r.timer.Stop()
 	}
+	now := time.Now()
+	prev := r.deadline
 	r.deadline = time.Time{}
 	if r.state == nil || r.opts.TurnTimeout <= 0 || r.state.Turn.Phase == game.PhaseGameOver {
+		r.pausedTrade = ""
 		return
+	}
+	timeout := r.opts.TurnTimeout
+	if t := r.state.Trade; t != nil {
+		if r.pausedTrade != t.ID {
+			// Freshly proposed: freeze the turn clock.
+			r.pausedTrade, r.pausedTurn, r.pausedLeft = t.ID, r.state.Turn.Number, 0
+			if !prev.IsZero() {
+				r.pausedLeft = prev.Sub(now)
+			}
+		}
+		timeout = r.opts.TradeTimeout
+		if timeout <= 0 {
+			timeout = r.opts.TurnTimeout
+		}
+	} else if r.pausedTrade != "" {
+		// Trade resolved: resume the interrupted turn where it left off.
+		if r.state.Turn.Number == r.pausedTurn && r.pausedLeft > 0 {
+			timeout = max(r.pausedLeft, minResumeTime)
+		}
+		r.pausedTrade = ""
 	}
 	humanWaiting := false
 	for _, pid := range game.WaitingOn(r.state) {
@@ -713,8 +789,8 @@ func (r *Room) armTimer() {
 	if !humanWaiting {
 		return
 	}
-	r.deadline = time.Now().Add(r.opts.TurnTimeout)
-	r.timer = time.AfterFunc(r.opts.TurnTimeout, func() { r.do(r.onTimeout) })
+	r.deadline = now.Add(timeout)
+	r.timer = time.AfterFunc(timeout, func() { r.do(r.onTimeout) })
 }
 
 // onTimeout applies the safe default for every waiting human and, after
@@ -727,13 +803,15 @@ func (r *Room) onTimeout() {
 		if _, isBot := r.bots[pid]; isBot {
 			continue
 		}
-		r.timeouts[pid]++
+		// Letting a trade offer lapse just declines it; it is not a sign
+		// the player is away, so it does not count toward the bot takeover.
+		if r.state.Trade == nil {
+			r.timeouts[pid]++
+		}
 		r.opts.Metrics.Timeouts.Inc()
 		if r.timeouts[pid] >= r.opts.MaxTimeouts {
 			if seat := r.seatByPlayer(pid); seat != nil {
-				seat.IsBot = true
-				seat.BotProfile = bot.Cautious.Name
-				r.bots[pid] = bot.New(pid, bot.Cautious)
+				r.handToBot(seat)
 				r.log.Info("seat handed to bot after timeouts", "player", pid)
 				r.broadcastLobby()
 			}

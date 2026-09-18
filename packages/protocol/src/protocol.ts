@@ -86,6 +86,10 @@ export const SChat = "Chat";
 /**
  * Server message types.
  */
+export const SKicked = "Kicked"; // to the removed user only: they no longer hold a seat
+/**
+ * Server message types.
+ */
 export const SAck = "Ack";
 /**
  * Server message types.
@@ -171,6 +175,14 @@ export interface ChatMessage {
   name: string;
   text: string;
   at: number /* int64 */;
+}
+/**
+ * Kicked tells a user the host removed them from a game. Mid-game their
+ * seat carries on under a bot.
+ */
+export interface Kicked {
+  gameId: string;
+  playerId: string;
 }
 export interface Ack {
   seq: number /* int */;

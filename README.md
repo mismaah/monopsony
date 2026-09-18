@@ -10,7 +10,7 @@ See [PLAN.md](PLAN.md) for the architecture and phase plan.
 server/            Go module — rules engine, rooms, WebSocket, REST, billing, admin API
   cmd/server       the API/WS server (single binary)
   cmd/sim          headless bot-vs-bot simulator (engine fuzzing)
-  internal/game    PURE rules engine (commands → events), classic config, invariants
+  internal/game    PURE rules engine (commands → events), Harbourside (shipped) + classic (test) boards, invariants
   internal/bot     heuristic AI (also the "safe default" for timed-out humans)
   internal/room    one actor per live game: bots, timers, persistence, broadcast
   internal/lobby   room registry, entitlement checks, restore on boot
@@ -25,6 +25,7 @@ server/            Go module — rules engine, rooms, WebSocket, REST, billing, 
   internal/cluster multi-node: Redis (or in-memory) bus, game ownership, cross-node room proxies
   internal/metrics Prometheus instruments;  internal/ratelimit token buckets
 apps/web           player client: Vite + React + React Three Fiber + Tailwind (+ Playwright e2e)
+  scripts/brand.mjs  generates the logo, favicon, mascot and board emblem (public/brand)
 apps/admin         admin panel: Vite + React + Tailwind
 packages/protocol  TypeScript types generated from the Go structs (tygo) + command/event unions
 packages/board-assets bundled glTF token models, the manifest schema, check/optimise/upload scripts
@@ -63,17 +64,25 @@ cd server; go test -race ./...                         # engine, room, store (me
 $env:MONOPSONY_TEST_DATABASE_URL = "postgres://..."; go test ./internal/store   # also runs the Postgres conformance suite
 $env:MONOPSONY_TEST_REDIS_URL = "redis://localhost:6379/1"; go test ./internal/cluster  # also runs the Redis bus + RPC test
 go run ./cmd/sim -games 1000 -seed 42 -players 4       # fuzz the engine: invariants checked after every command
+go run ./cmd/sim -games 1000 -seed 42 -surrender 30    # ...with a random player surrendering in a random phase every ~30 commands
 cd ..
 npm run typecheck; npm run build
 npm run e2e -w @monopsony/web                       # Playwright: boots a throwaway server on :8091 + Vite on :5199
 ```
 
-The Playwright suite (`apps/web/e2e`) covers: guest → create table → bots → roll → buy/decline → end turn (with a board screenshot and the free-tier ad slot), reload mid-game restoring identical state, a cosmetic equipped by one player showing up in another player's client (including the glTF preview), and an admin publishing a config that renames Boardwalk and changes start cash — the new game reflects it, the running one does not. `npm run e2e:ui -w @monopsony/web` opens the inspector. CI runs the Go suite against Postgres and Redis, the web build, and the e2e suite.
+The Playwright suite (`apps/web/e2e`) covers: guest → create table → bots → roll → buy/decline → end turn (with a board screenshot and the free-tier ad slot), reload mid-game restoring identical state, a cosmetic equipped by one player showing up in another player's client (including the glTF preview), and an admin publishing a config that renames Captain's Reach and changes start cash — the new game reflects it, the running one does not. `npm run e2e:ui -w @monopsony/web` opens the inspector. CI runs the Go suite against Postgres and Redis, the web build, and the e2e suite.
+
+## Brand and default board
+
+The shipped board is **Harbourside**, an original port-city theme (`server/internal/game/harbourside.go`): Kelp Lane to Captain's Reach, ferries instead of railroads, *Tide* and *Harbour Fund* decks, and *Set Sail / Dry Dock / Safe Harbour / Run Aground* corners. It keeps the classic layout space-for-space (a test enforces it) so the engine fixture (`ClassicConfig`, Hasbro's names, never shipped) still describes it. Card overlays and the admin editor take deck names from the board's own spaces, so a retheme needs no code change.
+
+The logo is an emerald octagon coin with an "M" (eight sides: eight seats, eight arms); the mascot is **Mono**, an octopus in a captain's cap — one buyer, eight arms. `apps/web/scripts/brand.mjs` is the single source for all of it and writes the SVGs, PNG icons, the social card and the board-centre emblem (`npm run brand -w @monopsony/web`); `apps/web/src/brand` places them. Nothing borrows Monopoly's trade dress: no top hat, moustache, red banner wordmark or house/hotel iconography.
 
 ## Key design points
 
 - **Server-authoritative, event-sourced gameplay.** The engine turns commands into events; the room persists a state snapshot plus the event log after every command. Clients animate the event stream (dice, token hops, cards) while receiving the authoritative state in an `Update` frame; reconnects replay events after `lastSeq`.
-- **Bots are ordinary players.** They choose only from `LegalActions`, so they can never issue an illegal command. A human who times out gets the bot's safe default; after three timeouts a bot takes the seat.
+- **Bots are ordinary players.** They choose only from `LegalActions`, so they can never issue an illegal command. A human who times out gets the bot's safe default; after three timeouts a bot takes the seat. The host can do the same on demand: kicking a player mid-game hands their seat to a bot and detaches the user (`DELETE /api/games/{id}/seats/{playerId}`).
+- **Anyone can surrender.** `Surrender` is legal in every phase, even mid-auction or while a trade is pending. It settles like a bankruptcy — everything to the creditor if the player owes one, otherwise back to the bank (deeds auctioned when the rules allow) — withdraws any live bid, and passes the turn on. `DeclareBankruptcy` remains the insolvent-only path.
 - **Entitlements in one place.** `entitlement.Resolve` maps a tier to capabilities (max players, private rooms, house rules, ads, stats window, cosmetic slots). Admins edit plans live; the lobby and shop enforce them server-side.
 - **Versioned configs.** Admins publish immutable config versions (board names/prices, card decks, rule defaults). New tables use the published version; running games keep theirs.
 - **Cosmetics are data.** Items carry a manifest the client renders: a builtin shape, a palette (boards/dice/cards) or a glTF model — bundled with the client (`{"model":{"builtin":"tophat"}}`) or uploaded through the admin panel and served under `/media/` (content-addressed, cached forever). Manifests are validated server-side (`internal/cosmetics/manifest.go`; JSON Schema in `packages/board-assets/manifest.schema.json`), the client fetches them once (`GET /api/cosmetics/manifests`), and loadouts are broadcast with seats so opponents see your skin. Materials named `keep_*` in a model keep their authored colour; everything else is tinted with the seat colour.

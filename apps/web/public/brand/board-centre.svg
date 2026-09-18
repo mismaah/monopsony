@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<defs>
+    <clipPath id="disc"><circle cx="512" cy="512" r="452"/></clipPath>
+    <path id="ring" d="M104 512A408 408 0 0 1 920 512"/>
+  </defs>
+  <circle cx="512" cy="512" r="470" fill="#0e3a4a"/>
+  <circle cx="512" cy="512" r="470" fill="none" stroke="#f5c451" stroke-width="10"/>
+  <circle cx="512" cy="512" r="452" fill="none" stroke="#f5c451" stroke-width="3" opacity="0.6"/>
+  <g clip-path="url(#disc)">
+    <path d="M512 90L528 512L496 512Z" fill="#f5c451" transform="rotate(0 512 512)" opacity="0.28"/>
+    <path d="M512 90L528 512L496 512Z" fill="#f5c451" transform="rotate(45 512 512)" opacity="0.16"/>
+    <path d="M512 90L528 512L496 512Z" fill="#f5c451" transform="rotate(90 512 512)" opacity="0.28"/>
+    <path d="M512 90L528 512L496 512Z" fill="#f5c451" transform="rotate(135 512 512)" opacity="0.16"/>
+    <path d="M512 90L528 512L496 512Z" fill="#f5c451" transform="rotate(180 512 512)" opacity="0.28"/>
+    <path d="M512 90L528 512L496 512Z" fill="#f5c451" transform="rotate(225 512 512)" opacity="0.16"/>
+    <path d="M512 90L528 512L496 512Z" fill="#f5c451" transform="rotate(270 512 512)" opacity="0.28"/>
+    <path d="M512 90L528 512L496 512Z" fill="#f5c451" transform="rotate(315 512 512)" opacity="0.16"/>
+    <path d="M0 560Q64 538 128 560T256 560T384 560T512 560T640 560T768 560T896 560T1024 560" fill="none" stroke="#34d399" stroke-width="4" opacity="0.12"/>
+    <path d="M0 620Q64 598 128 620T256 620T384 620T512 620T640 620T768 620T896 620T1024 620" fill="none" stroke="#34d399" stroke-width="4" opacity="0.15"/>
+    <path d="M0 680Q64 658 128 680T256 680T384 680T512 680T640 680T768 680T896 680T1024 680" fill="none" stroke="#34d399" stroke-width="4" opacity="0.18"/>
+    <path d="M0 740Q64 718 128 740T256 740T384 740T512 740T640 740T768 740T896 740T1024 740" fill="none" stroke="#34d399" stroke-width="4" opacity="0.21"/>
+    <path d="M0 800Q64 778 128 800T256 800T384 800T512 800T640 800T768 800T896 800T1024 800" fill="none" stroke="#34d399" stroke-width="4" opacity="0.24"/>
+    <path d="M0 860Q64 838 128 860T256 860T384 860T512 860T640 860T768 860T896 860T1024 860" fill="none" stroke="#34d399" stroke-width="4" opacity="0.27"/>
+    <g transform="translate(512 1000) scale(2.6) translate(-100 -160)"><g>
+  <path d="M70 118C55 140 45 160 58 178" fill="none" stroke="#059669" stroke-width="12" stroke-linecap="round"/>
+  <path d="M92 126C90 150 88 165 96 185" fill="none" stroke="#059669" stroke-width="12" stroke-linecap="round"/>
+  <path d="M108 126C110 150 112 165 104 185" fill="none" stroke="#059669" stroke-width="12" stroke-linecap="round"/>
+  <path d="M130 118C145 140 155 160 142 178" fill="none" stroke="#059669" stroke-width="12" stroke-linecap="round"/>
+  <!-- head -->
+  <path d="M45 100C45 45 155 45 155 100C155 120 140 132 100 132C60 132 45 120 45 100Z" fill="#10b981"/>
+  <ellipse cx="78" cy="66" rx="16" ry="9" transform="rotate(-25 78 66)" fill="#34d399" opacity="0.55"/>
+  <!-- front arms -->
+  <path d="M62 120C45 130 22 145 30 170C34 184 52 184 50 172" fill="none" stroke="#10b981" stroke-width="13" stroke-linecap="round"/>
+  <path d="M80 128C72 145 60 160 68 182C72 192 86 190 84 180" fill="none" stroke="#10b981" stroke-width="13" stroke-linecap="round"/>
+  <path d="M120 128C128 145 140 160 132 182C128 192 114 190 116 180" fill="none" stroke="#10b981" stroke-width="13" stroke-linecap="round"/>
+  <path d="M140 116C162 122 186 110 180 84" fill="none" stroke="#10b981" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="40" cy="150" r="2.4" fill="#a7f3d0" opacity="0.9"/><circle cx="34" cy="162" r="2.4" fill="#a7f3d0" opacity="0.9"/><circle cx="70" cy="150" r="2.4" fill="#a7f3d0" opacity="0.9"/><circle cx="65" cy="165" r="2.4" fill="#a7f3d0" opacity="0.9"/><circle cx="130" cy="150" r="2.4" fill="#a7f3d0" opacity="0.9"/><circle cx="135" cy="165" r="2.4" fill="#a7f3d0" opacity="0.9"/>
+  <circle cx="160" cy="118" r="2.4" fill="#a7f3d0" opacity="0.9"/><circle cx="176" cy="106" r="2.4" fill="#a7f3d0" opacity="0.9"/>
+  <!-- face -->
+  <circle cx="80" cy="86" r="13" fill="#fff"/>
+  <circle cx="120" cy="86" r="13" fill="#fff"/>
+  <circle cx="84" cy="88" r="6" fill="#0f172a"/>
+  <circle cx="124" cy="88" r="6" fill="#0f172a"/>
+  <circle cx="86" cy="85" r="2" fill="#fff"/>
+  <circle cx="126" cy="85" r="2" fill="#fff"/>
+  <path d="M90 108C96 116 104 116 110 108" fill="none" stroke="#0f172a" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="64" cy="104" r="6" fill="#f5c451" opacity="0.35"/>
+  <circle cx="136" cy="104" r="6" fill="#f5c451" opacity="0.35"/>
+  <!-- captain's cap -->
+  <path d="M84 56C92 34 136 30 150 50L154 62C132 54 104 56 86 66Z" fill="#0e3a4a"/>
+  <path d="M84 66C104 56 134 54 156 62C150 70 122 66 88 72Z" fill="#0f172a"/>
+  <path d="M90 62C108 55 132 54 152 60" fill="none" stroke="#f5c451" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="118" cy="47" r="4" fill="#f5c451"/>
+  <g transform="translate(160 56) scale(0.75)"><g>
+  <polygon points="59.72,20.52 43.48,4.28 20.52,4.28 4.28,20.52 4.28,43.48 20.52,59.72 43.48,59.72 59.72,43.48" fill="#10b981" stroke="#f5c451" stroke-width="3" stroke-linejoin="round"/>
+  <polygon points="59.72,20.52 43.48,4.28 20.52,4.28 4.28,20.52 4.28,43.48 20.52,59.72 43.48,59.72 59.72,43.48" fill="none" stroke="#059669" stroke-width="1.5" stroke-linejoin="round" transform="translate(32 32) scale(0.82) translate(-32 -32)" opacity="0.6"/>
+  <path d="M16 46V20h7l9 13 9-13h7v26h-7V32l-9 12.5L23 32v14z" fill="#ffffff"/>
+</g></g>
+</g></g>
+  </g>
+  <text font-family="'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="700" font-size="34" letter-spacing="8" fill="#f5c451" opacity="0.9" text-anchor="middle">
+    <textPath href="#ring" startOffset="50%">ONE BUYER · EIGHT ARMS</textPath>
+  </text>
+  <g transform="translate(512 300) scale(3.6) translate(-32 -32)"><g>
+  <polygon points="59.72,20.52 43.48,4.28 20.52,4.28 4.28,20.52 4.28,43.48 20.52,59.72 43.48,59.72 59.72,43.48" fill="#10b981" stroke="#f5c451" stroke-width="3" stroke-linejoin="round"/>
+  <polygon points="59.72,20.52 43.48,4.28 20.52,4.28 4.28,20.52 4.28,43.48 20.52,59.72 43.48,59.72 59.72,43.48" fill="none" stroke="#059669" stroke-width="1.5" stroke-linejoin="round" transform="translate(32 32) scale(0.82) translate(-32 -32)" opacity="0.6"/>
+  <path d="M16 46V20h7l9 13 9-13h7v26h-7V32l-9 12.5L23 32v14z" fill="#ffffff"/>
+</g></g>
+  <text x="512" y="520" text-anchor="middle" font-family="'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="112" letter-spacing="-2" fill="#f1e9d2">MONOPSONY</text>
+  <text x="512" y="576" text-anchor="middle" font-family="'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif" font-weight="700" font-size="34" letter-spacing="14" fill="#34d399">HARBOURSIDE</text>
+</svg>

@@ -200,3 +200,169 @@ func TestBotsPlayToCompletion(t *testing.T) {
 		}
 	}
 }
+
+// A pending trade pauses the game: the recipient gets TradeTimeout to answer,
+// the proposer cannot play on meanwhile, a lapsed offer is simply declined
+// (not an AFK strike), and the proposer's turn clock resumes afterwards.
+func TestTradePausesTurnClock(t *testing.T) {
+	st := store.NewMem()
+	r, err := New(newRecord(), st, Options{TurnTimeout: time.Second, TradeTimeout: 50 * time.Millisecond, MaxTimeouts: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	for _, u := range []*store.User{{ID: "u1", Name: "Alice"}, {ID: "u2", Name: "Bob"}} {
+		if err := r.Join(u); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s1 := &fakeSub{id: "u1"}
+	r.Subscribe(s1, 0)
+	if err := r.StartGame("u1"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return s1.count(protocol.SSnapshot) >= 1 })
+
+	// snap copies the state on the actor goroutine: the timer mutates the
+	// live one, so the test must never read it directly.
+	snap := func() (*game.State, time.Time) {
+		v, _ := call(r, func() (struct {
+			s game.State
+			d time.Time
+		}, error) {
+			return struct {
+				s game.State
+				d time.Time
+			}{*r.state, r.deadline}, nil
+		})
+		return &v.s, v.d
+	}
+	_, turnDeadline := snap()
+	if turnDeadline.IsZero() {
+		t.Fatal("expected a turn deadline")
+	}
+
+	proposedAt := time.Now()
+	if err := r.Command("u1", &game.ProposeTrade{Base: game.Base{PlayerID: "u1"}, ToID: "u2", Give: game.TradeSide{Cash: 5}}); err != nil {
+		t.Fatal(err)
+	}
+	s, tradeDeadline := snap()
+	if s.Trade == nil {
+		t.Fatal("expected a pending trade")
+	}
+	if left := tradeDeadline.Sub(proposedAt); left > 100*time.Millisecond {
+		t.Fatalf("trade deadline should be ~TradeTimeout away, got %v", left)
+	}
+	// The proposer is frozen while the offer stands.
+	if err := r.Command("u1", &game.RollDice{Base: game.Base{PlayerID: "u1"}}); err == nil {
+		t.Fatal("proposer should not be able to roll during a pending trade")
+	}
+
+	// Recipient never answers: the offer lapses, play resumes with u1.
+	waitFor(t, func() bool { s, _ := snap(); return s.Trade == nil })
+	s, resumed := snap()
+	if s.Turn.Phase != game.PhasePreRoll || s.CurrentPlayer().ID != "u1" {
+		t.Fatalf("turn should resume for the proposer, got %s/%s", s.Turn.Phase, s.CurrentPlayer().ID)
+	}
+	if resumed.IsZero() || !resumed.After(tradeDeadline) {
+		t.Fatalf("turn clock should be re-armed after the trade, got %v", resumed)
+	}
+	if seat := r.Record().Seats[1]; seat.IsBot {
+		t.Fatal("a lapsed trade offer must not hand the seat to a bot")
+	}
+	if err := r.Command("u1", &game.RollDice{Base: game.Base{PlayerID: "u1"}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The host may remove a player mid-game: the seat carries on under a bot, the
+// kicked user is told and loses the seat, and the game plays on. Anyone may
+// surrender at any point and is out immediately.
+func TestKickMidGameAndSurrender(t *testing.T) {
+	st := store.NewMem()
+	r, err := New(newRecord(), st, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	for _, u := range []*store.User{{ID: "u1", Name: "Host"}, {ID: "u2", Name: "Bob"}, {ID: "u3", Name: "Cara"}} {
+		if err := r.Join(u); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s1, s2, s3 := &fakeSub{id: "u1"}, &fakeSub{id: "u2"}, &fakeSub{id: "u3"}
+	r.Subscribe(s1, 0)
+	r.Subscribe(s2, 0)
+	r.Subscribe(s3, 0)
+	if err := r.StartGame("u1"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return s2.count(protocol.SSnapshot) >= 1 })
+
+	if err := r.Kick("u2", "u1"); err == nil {
+		t.Fatal("only the host may kick")
+	}
+	if err := r.Kick("u1", "u1"); err == nil {
+		t.Fatal("the host cannot kick themselves")
+	}
+	if err := r.Kick("u1", "nobody"); err == nil {
+		t.Fatal("expected not_found")
+	}
+	// u1 (host) is mid-turn; kicking u2 hands u2's seat to a bot.
+	if err := r.Kick("u1", "u2"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return s2.count(protocol.SKicked) == 1 })
+	if s1.count(protocol.SKicked) != 0 || s3.count(protocol.SKicked) != 0 {
+		t.Fatal("only the kicked user should be told")
+	}
+	var seat *store.SeatRecord
+	for _, s := range r.Record().Seats {
+		if s.PlayerID == "u2" {
+			c := s
+			seat = &c
+		}
+	}
+	if seat == nil || !seat.IsBot || seat.UserID != "" {
+		t.Fatalf("kicked seat should be a detached bot: %+v", seat)
+	}
+	if err := r.Command("u2", &game.Surrender{Base: game.Base{PlayerID: "u2"}}); err == nil {
+		t.Fatal("a kicked user should no longer be seated")
+	}
+	if err := r.Kick("u1", "u2"); err == nil {
+		t.Fatal("a bot seat cannot be kicked mid-game")
+	}
+	var up protocol.Update
+	if err := json.Unmarshal(s2.last(protocol.SUpdate).P, &up); err != nil {
+		t.Fatal(err)
+	}
+	if len(up.Actions) != 0 {
+		t.Fatalf("kicked user should have no actions, got %v", up.Actions)
+	}
+
+	// Cara surrenders off-turn; the host is then last human standing against a bot.
+	if err := r.Command("u3", &game.Surrender{Base: game.Base{PlayerID: "u3"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Command("u3", &game.Surrender{Base: game.Base{PlayerID: "u3"}}); err == nil {
+		t.Fatal("surrendering twice should fail")
+	}
+	rec := r.Record()
+	var s game.State
+	_ = json.Unmarshal(rec.State, &s)
+	s.Bind(rec.Config)
+	if !s.PlayerByID("u3").Bankrupt || s.PlayerByID("u1").Bankrupt || s.Turn.Phase == game.PhaseGameOver {
+		t.Fatalf("expected u3 out and the game continuing: %+v", s.Turn)
+	}
+	if err := game.CheckInvariants(&s); err != nil {
+		t.Fatal(err)
+	}
+	// The host surrenders on their own turn: the bot is last standing.
+	if err := r.Command("u1", &game.Surrender{Base: game.Base{PlayerID: "u1"}}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return r.Record().Status == store.StatusFinished })
+	if r.Record().WinnerID != "u2" {
+		t.Fatalf("expected the bot in u2's seat to win, got %s", r.Record().WinnerID)
+	}
+}

@@ -40,7 +40,10 @@ export default function App() {
   return (
     <div className="h-full flex">
       <aside className="w-52 border-r border-zinc-800 p-3 flex flex-col gap-1 shrink-0">
-        <div className="font-bold text-emerald-400 px-3 py-2">Monopsony Admin</div>
+        <div className="flex items-center gap-2 font-bold text-emerald-400 px-3 py-2">
+          <img src="/favicon.svg" width={22} height={22} alt="" aria-hidden />
+          Monopsony Admin
+        </div>
         <NavLink to="/configs" className={link}>Game configs</NavLink>
         <NavLink to="/plans" className={link}>Plans & tiers</NavLink>
         <NavLink to="/users" className={link}>Users</NavLink>

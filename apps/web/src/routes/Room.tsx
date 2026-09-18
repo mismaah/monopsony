@@ -4,6 +4,7 @@ import { api } from "@/api/http";
 import { useAuth } from "@/store/auth";
 import { useGame } from "@/store/game";
 import { Button, Card, seatColors } from "@/lib/ui";
+import { Mascot } from "@/brand";
 import GamePage from "./Game";
 
 /**
@@ -123,7 +124,12 @@ export default function RoomPage() {
             Leave
           </Button>
         )}
-        {!isHost && me && <span className="text-sm text-slate-400">Waiting for the host to start…</span>}
+        {!isHost && me && (
+          <span className="flex items-center gap-2 text-sm text-slate-400">
+            <Mascot size={28} pose="plain" />
+            Waiting for the host to start…
+          </span>
+        )}
       </div>
       {error && <p className="text-rose-400 text-sm">{error}</p>}
     </div>

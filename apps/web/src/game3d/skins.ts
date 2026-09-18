@@ -61,17 +61,18 @@ export interface BoardSkin {
 }
 
 export const BOARDS: Record<string, BoardSkin> = {
+  // The shipped look: sand tiles on a deep-water table, sea-foam centre.
   "board.classic": {
     id: "board.classic",
-    name: "Classic",
-    table: "#173a2a",
-    tile: "#e9e4d3",
-    tileEdge: "#1f2937",
-    text: "#1f2937",
-    centre: "#cfe8d2",
-    house: "#2e9e4f",
-    hotel: "#c62828",
-    mortgageTint: "#8a8577",
+    name: "Harbourside",
+    table: "#0e3a4a",
+    tile: "#f1e9d2",
+    tileEdge: "#082430",
+    text: "#0f172a",
+    centre: "#cfe6df",
+    house: "#10b981",
+    hotel: "#f5c451",
+    mortgageTint: "#9a9385",
   },
   "board.midnight": {
     id: "board.midnight",

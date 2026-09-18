@@ -453,7 +453,7 @@ func (m *Manager) Sweep(idle time.Duration) {
 	}
 }
 
-// EnsurePublishedConfig seeds the classic config when nothing is published.
+// EnsurePublishedConfig seeds the Harbourside board when nothing is published.
 func EnsurePublishedConfig(ctx context.Context, st store.Store) error {
 	_, err := st.GetPublishedConfig(ctx)
 	if err == nil {
@@ -462,6 +462,6 @@ func EnsurePublishedConfig(ctx context.Context, st store.Store) error {
 	if !errors.Is(err, store.ErrNotFound) {
 		return err
 	}
-	cfg := game.ClassicConfig()
+	cfg := game.HarboursideConfig()
 	return st.SaveConfig(ctx, &store.ConfigRecord{ID: cfg.ID, Version: 1, Name: cfg.Name, Config: cfg, Published: true, CreatedBy: "system", CreatedAt: time.Now()})
 }

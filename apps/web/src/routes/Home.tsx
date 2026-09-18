@@ -3,6 +3,7 @@ import { api } from "@/api/http";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/store/auth";
 import { Button, Card, Input } from "@/lib/ui";
+import { Logo, Mascot, TAGLINE } from "@/brand";
 
 type Mode = "guest" | "login" | "register";
 
@@ -43,8 +44,12 @@ export default function Home() {
     <div className="h-full grid place-items-center p-4">
       <div className="w-full max-w-md space-y-4">
         <div className="text-center">
-          <h1 className="text-4xl font-black tracking-tight">Monopsony</h1>
-          <p className="text-slate-400 mt-1">Buy, build, bankrupt your friends — in 3D.</p>
+          <Mascot size={132} className="mx-auto -mb-3" />
+          <h1>
+            <Logo className="text-4xl" markSize={40} />
+          </h1>
+          <p className="text-emerald-300 font-semibold mt-1">{TAGLINE}</p>
+          <p className="text-slate-400">Buy, build, bankrupt your friends — in 3D.</p>
         </div>
         <Card>
           <div className="flex gap-1 mb-4 bg-slate-800 rounded-md p-1">

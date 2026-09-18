@@ -79,6 +79,9 @@ type (
 	UseJailCard struct{ Base }
 	// DeclareBankruptcy gives up while in RaisingFunds.
 	DeclareBankruptcy struct{ Base }
+	// Surrender leaves the game at any point. Assets go to the creditor if
+	// the player owes one, otherwise back to the bank.
+	Surrender struct{ Base }
 )
 
 func (RollDice) CommandType() string          { return "RollDice" }
@@ -97,6 +100,7 @@ func (RejectTrade) CommandType() string       { return "RejectTrade" }
 func (PayJailFine) CommandType() string       { return "PayJailFine" }
 func (UseJailCard) CommandType() string       { return "UseJailCard" }
 func (DeclareBankruptcy) CommandType() string { return "DeclareBankruptcy" }
+func (Surrender) CommandType() string         { return "Surrender" }
 
 var commandFactories = map[string]func() Command{
 	"RollDice":          func() Command { return &RollDice{} },
@@ -115,6 +119,7 @@ var commandFactories = map[string]func() Command{
 	"PayJailFine":       func() Command { return &PayJailFine{} },
 	"UseJailCard":       func() Command { return &UseJailCard{} },
 	"DeclareBankruptcy": func() Command { return &DeclareBankruptcy{} },
+	"Surrender":         func() Command { return &Surrender{} },
 }
 
 // CommandTypes lists every command type name (for protocol generation/tests).

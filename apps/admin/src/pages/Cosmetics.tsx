@@ -33,7 +33,7 @@ const templates: Record<string, Record<string, unknown>[]> = {
     { model: { builtin: "tophat" }, material: { metalness: 0.1, roughness: 0.6 } },
     { model: { url: "/media/<uploaded>.glb", scale: 1, offset: [0, 0, 0], rotation: [0, 0, 0] } },
   ],
-  board: [{ builtin: "board.midnight" }, { palette: { table: "#173a2a", tile: "#e9e4d3", tileEdge: "#1f2937", text: "#1f2937", centre: "#cfe8d2", house: "#2e9e4f", hotel: "#c62828", mortgageTint: "#8a8577" } }],
+  board: [{ builtin: "board.midnight" }, { palette: { table: "#0e3a4a", tile: "#f1e9d2", tileEdge: "#082430", text: "#0f172a", centre: "#cfe6df", house: "#10b981", hotel: "#f5c451", mortgageTint: "#9a9385" } }],
   dice: [{ builtin: "dice.onyx" }, { palette: { body: "#111827", pip: "#f5f1e6" } }],
   buildings: [{ builtin: "buildings.classic" }],
   cards: [{ builtin: "cards.classic" }, { palette: { back: "#1e3a8a", face: "#f8fafc" } }],
