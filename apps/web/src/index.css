@@ -13,3 +13,22 @@ html, body, #root {
 canvas {
   touch-action: none;
 }
+
+/* Floating cash pops on the players rail: slide in from the right, hold, then
+   collapse out to the left so the pops behind it shift over smoothly. */
+@keyframes cash-pop-in {
+  from { opacity: 0; transform: translateX(14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes cash-pop-out {
+  from { opacity: 1; transform: translateX(0);     max-width: 6rem; margin-right: 0.25rem; }
+  to   { opacity: 0; transform: translateX(-14px); max-width: 0;    margin-right: 0; }
+}
+.cash-pop {
+  max-width: 6rem;
+  margin-right: 0.25rem;
+  overflow: hidden;
+  animation:
+    cash-pop-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    cash-pop-out 320ms ease-in var(--cash-pop-hold) both;
+}

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Action, Config, GameEvent, Lobby, SeatInfo, Snapshot, State, Update } from "@monopsony/protocol";
 import { socket } from "@/api/ws";
-import { AnimationQueue } from "@/anim/queue";
+import { AnimationQueue, type CashPop } from "@/anim/queue";
 import { useAuth } from "@/store/auth";
 import { sfx } from "@/audio/sfx";
 
@@ -36,6 +36,8 @@ interface GameStore {
   /** What the 3D scene shows: updated step by step by the animation queue. */
   positions: Record<string, number>;
   cash: Record<string, number>;
+  /** Recent cash movements, shown as floating amounts on the players rail. */
+  cashPops: CashPop[];
   dice: DiceView;
   card: CardView | null;
   highlight: number | null; // space flashed by a purchase/auction
@@ -130,6 +132,7 @@ export const useGame = create<GameStore>((set, get) => {
     deadline: 0,
     positions: {},
     cash: {},
+    cashPops: [],
     dice: { faces: [1, 1], rollId: 0 },
     card: null,
     highlight: null,

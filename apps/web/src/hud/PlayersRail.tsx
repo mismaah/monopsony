@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useGame } from "@/store/game";
 import { useAuth } from "@/store/auth";
 import { seatColors } from "@/lib/ui";
 import { api } from "@/api/http";
+import { T } from "@/anim/timing";
 
 /** Cash counter that ticks toward the animated balance. */
 function Counter({ value }: { value: number }) {
@@ -22,6 +23,26 @@ function Counter({ value }: { value: number }) {
     return () => cancelAnimationFrame(raf.current);
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
   return <span className="tabular-nums">${shown.toLocaleString()}</span>;
+}
+
+/** Floating +$/-$ amounts next to a player's name; newest enters from the right, oldest leaves to the left. */
+function CashPops({ playerId }: { playerId: string }) {
+  const pops = useGame((s) => s.cashPops);
+  const mine = pops.filter((p) => p.playerId === playerId);
+  if (!mine.length) return null;
+  return (
+    <span className="flex items-center min-w-0 overflow-hidden text-xs font-semibold tabular-nums" aria-live="polite">
+      {mine.map((p) => (
+        <span
+          key={p.id}
+          className={`cash-pop whitespace-nowrap ${p.delta >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+          style={{ "--cash-pop-hold": `${T.cashPop}ms` } as CSSProperties}
+        >
+          {p.delta >= 0 ? "+" : "−"}${Math.abs(p.delta).toLocaleString()}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 export function PlayersRail() {
@@ -58,6 +79,7 @@ export function PlayersRail() {
                 {p.name}
                 {p.id === me?.id && <span className="text-slate-500"> (you)</span>}
               </span>
+              <CashPops playerId={p.id} />
               <span className="flex-1" />
               {p.isBot || seat?.isBot ? (
                 <span className="text-[10px] uppercase text-slate-500">bot</span>

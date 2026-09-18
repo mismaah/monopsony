@@ -9,6 +9,7 @@ export interface QueueBinding {
   get: () => {
     positions: Record<string, number>;
     cash: Record<string, number>;
+    cashPops: CashPop[];
     dice: { faces: [number, number]; rollId: number };
     log: { seq: number; text: string; kind: "info" | "money" | "alert" }[];
     config: { spaces: { name: string }[] } | null;
@@ -20,7 +21,15 @@ export interface QueueBinding {
   set: (partial: Record<string, unknown>) => void;
 }
 
+/** A floating +$/-$ amount shown briefly next to a player's name. */
+export interface CashPop {
+  id: number;
+  playerId: string;
+  delta: number;
+}
+
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+let popId = 0;
 const BOARD = 40;
 
 /**
@@ -42,7 +51,7 @@ export class AnimationQueue {
     this.items = [];
     this.gen++;
     this.running = false;
-    this.b?.set({ animating: false, card: null, highlight: null });
+    this.b?.set({ animating: false, card: null, highlight: null, cashPops: [] });
   }
 
   push(ev: GameEvent) {
@@ -105,9 +114,14 @@ export class AnimationQueue {
         }
         break;
       }
-      case "CashChanged":
-        this.b.set({ cash: { ...this.b.get().cash, [ev.payload.playerId]: ev.payload.balance } });
+      case "CashChanged": {
+        const { playerId, balance, delta } = ev.payload;
+        const pop: CashPop = { id: ++popId, playerId, delta };
+        this.b.set({ cash: { ...this.b.get().cash, [playerId]: balance }, cashPops: [...this.b.get().cashPops, pop] });
+        // The pop exits on its own; the extra time covers its slide-out animation.
+        setTimeout(() => this.b.set({ cashPops: this.b.get().cashPops.filter((p) => p.id !== pop.id) }), T.cashPop + 400);
         break;
+      }
       case "CardDrawn":
         this.b.set({ card: { deck: ev.payload.deck, text: ev.payload.text, playerId: ev.payload.playerId } });
         await sleep(T.cardShow);
