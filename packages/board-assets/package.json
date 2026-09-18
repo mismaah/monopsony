@@ -1,0 +1,19 @@
+{
+  "name": "@monopsony/board-assets",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bundled glTF token models, the cosmetic manifest schema, and the scripts that check, optimise and upload assets.",
+  "exports": {
+    "./models/*": "./models/*",
+    "./manifest.schema.json": "./manifest.schema.json"
+  },
+  "scripts": {
+    "build": "node scripts/make-models.mjs",
+    "check": "node scripts/check-glb.mjs",
+    "optimize": "npx --yes @gltf-transform/cli optimize",
+    "upload": "node scripts/upload.mjs",
+    "typecheck": "node --check scripts/glb.mjs && node --check scripts/make-models.mjs && node --check scripts/check-glb.mjs && node --check scripts/upload.mjs",
+    "test": "node scripts/make-models.mjs && node scripts/check-glb.mjs models/tophat.glb && node scripts/check-glb.mjs models/rocket.glb"
+  }
+}

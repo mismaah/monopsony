@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://monopsony.dev/schemas/cosmetic-manifest.json",
+  "title": "Cosmetic manifest",
+  "description": "Tells the Monopsony client how to render a cosmetic item. Mirrors server/internal/cosmetics/manifest.go, which is the validator of record.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "builtin": {
+      "type": "string",
+      "description": "A look shipped with the client, e.g. token.pawn, board.midnight, dice.onyx."
+    },
+    "color": {
+      "$ref": "#/$defs/color",
+      "description": "Tint for builtin shapes and glTF materials not marked keep_*. Omit to use the seat colour."
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A glTF 2.0 model (.glb). Either url (uploaded asset or https) or builtin (bundled with the client).",
+      "properties": {
+        "url": { "type": "string", "pattern": "^(https?://|/media/)" },
+        "builtin": { "type": "string", "enum": ["tophat", "rocket"] },
+        "scale": { "type": "number", "minimum": 0, "maximum": 100 },
+        "offset": { "$ref": "#/$defs/vec3" },
+        "rotation": { "$ref": "#/$defs/vec3", "description": "Euler XYZ in radians." },
+        "draco": { "type": "boolean", "description": "Model uses KHR_draco_mesh_compression." }
+      }
+    },
+    "palette": {
+      "type": "object",
+      "description": "Colours for board / dice / cards items. Allowed keys depend on the slot: board (table, tile, tileEdge, text, centre, house, hotel, mortgageTint), dice (body, pip), cards (back, face).",
+      "additionalProperties": { "$ref": "#/$defs/color" }
+    },
+    "material": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "metalness": { "type": "number", "minimum": 0, "maximum": 1 },
+        "roughness": { "type": "number", "minimum": 0, "maximum": 1 },
+        "emissive": { "$ref": "#/$defs/color" }
+      }
+    },
+    "preview": { "type": "string", "pattern": "^(https?://|/media/)", "description": "Optional image shown in the shop instead of the live 3D preview." }
+  },
+  "$defs": {
+    "color": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
+    "vec3": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
+  }
+}

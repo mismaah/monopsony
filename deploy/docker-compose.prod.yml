@@ -1,0 +1,69 @@
+# Production-style stack: Postgres + Redis + the Monopsony image.
+#
+# One app container is the default. To run several nodes behind your load
+# balancer: `docker compose -f deploy/docker-compose.prod.yml up --scale app=3`
+# (the published port range below hands each replica its own host port;
+# point the balancer at all of them and enable sticky WebSocket routing or
+# not — games are reachable from any node through Redis).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: monopsony
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: monopsony
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monopsony"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080-8089:8080"
+    volumes:
+      - media:/app/data/assets
+    environment:
+      MONOPSONY_DATABASE_URL: postgres://monopsony:${POSTGRES_PASSWORD:-change-me}@postgres:5432/monopsony?sslmode=disable
+      MONOPSONY_REDIS_URL: redis://redis:6379/0
+      MONOPSONY_ASSET_DIR: /app/data/assets
+      MONOPSONY_METRICS_ADDR: ":9100"
+      MONOPSONY_TRUST_PROXY: ${MONOPSONY_TRUST_PROXY:-0}
+      MONOPSONY_LOG_FORMAT: json
+      MONOPSONY_ADS_PROVIDER: ${MONOPSONY_ADS_PROVIDER:-house}
+      MONOPSONY_ADSENSE_CLIENT: ${MONOPSONY_ADSENSE_CLIENT:-}
+      MONOPSONY_ADSENSE_SLOT: ${MONOPSONY_ADSENSE_SLOT:-}
+      MONOPSONY_JWT_SECRET: ${MONOPSONY_JWT_SECRET:?set a long random secret}
+      MONOPSONY_PUBLIC_URL: ${MONOPSONY_PUBLIC_URL:-http://localhost:8080}
+      MONOPSONY_CORS_ORIGINS: ${MONOPSONY_PUBLIC_URL:-http://localhost:8080}
+      MONOPSONY_ADMIN_EMAILS: ${MONOPSONY_ADMIN_EMAILS:-}
+      MONOPSONY_BILLING_PROVIDER: ${MONOPSONY_BILLING_PROVIDER:-fake}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+
+volumes:
+  pgdata:
+  media:

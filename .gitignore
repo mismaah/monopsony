@@ -1,0 +1,32 @@
+# Go
+server/bin/
+*.exe
+*.test
+*.out
+coverage.*
+
+# Node
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Env / local
+.env
+.env.*
+!.env.example
+*.local
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Playwright
+test-results/
+playwright-report/
+
+# Uploaded cosmetic assets (MONOPSONY_ASSET_DIR)
+server/data/
+data/

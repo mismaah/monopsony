@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: monopsony
+          POSTGRES_PASSWORD: monopsony
+          POSTGRES_DB: monopsony
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U monopsony" --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+      - name: Format
+        run: cd server && test -z "$(gofmt -l ./cmd ./internal)"
+      - name: Vet
+        run: cd server && go vet ./...
+      - name: Test (race; both stores; Redis bus)
+        run: cd server && go test -race -count=1 ./...
+        env:
+          MONOPSONY_TEST_DATABASE_URL: postgres://monopsony:monopsony@localhost:5432/monopsony?sslmode=disable
+          MONOPSONY_TEST_REDIS_URL: redis://localhost:6379/1
+      - name: Simulate 500 games
+        run: cd server && go run ./cmd/sim -games 500 -seed 7 -players 4 -turn-limit 400
+      - name: Generated TS types are up to date
+        run: |
+          cd server && go run github.com/gzuidhof/tygo@v0.2.18 generate
+          git diff --exit-code -- ../packages/protocol/src
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Bundled models are up to date
+        run: |
+          npm run build -w @monopsony/board-assets
+          git diff --exit-code -- packages/board-assets/models
+      - run: npm run typecheck -ws --if-present
+      - run: npm run build -ws --if-present
+      - run: npm run test -w @monopsony/board-assets
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [server, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Pre-build the server so Playwright's startup timeout is not spent compiling
+        run: cd server && go build ./cmd/server
+      - run: npm exec -w @monopsony/web -- playwright install --with-deps chromium
+      - name: Playwright smoke suite
+        run: npm run e2e -w @monopsony/web
+        env:
+          CI: "1"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
+          retention-days: 7

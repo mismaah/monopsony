@@ -1,0 +1,87 @@
+version: "3"
+
+vars:
+  GO_DIR: server
+
+tasks:
+  gen:
+    desc: Generate TS protocol types from Go structs
+    dir: "{{.GO_DIR}}"
+    cmds:
+      - go run github.com/gzuidhof/tygo@v0.2.18 generate
+
+  lint:
+    desc: Lint Go and TS
+    cmds:
+      - cd {{.GO_DIR}} && gofmt -l ./cmd ./internal && go vet ./...
+      - npm run lint
+
+  test:
+    desc: Run all tests (unit + integration; Postgres/Redis suites when their URLs are set)
+    cmds:
+      - cd {{.GO_DIR}} && go test -race ./...
+      - npm test
+
+  e2e:
+    desc: Playwright smoke suite (boots its own server + Vite on spare ports)
+    cmds:
+      - npm run e2e -w @monopsony/web
+
+  sim:
+    desc: Run the headless bot simulator
+    dir: "{{.GO_DIR}}"
+    cmds:
+      - go run ./cmd/sim -games {{.GAMES | default 1000}} -seed {{.SEED | default 42}}
+
+  server:
+    desc: Run the API/WS server (loads .env if present)
+    dir: "{{.GO_DIR}}"
+    dotenv: ["../.env"]
+    cmds:
+      - go run ./cmd/server
+
+  server:node2:
+    desc: Run a second server node on :8081 (needs MONOPSONY_REDIS_URL + Postgres in .env)
+    dir: "{{.GO_DIR}}"
+    dotenv: ["../.env"]
+    env:
+      MONOPSONY_ADDR: ":8081"
+      MONOPSONY_METRICS_ADDR: ":9101"
+      MONOPSONY_NODE_ID: node-2
+    cmds:
+      - go run ./cmd/server
+
+  web:
+    desc: Run the player app dev server
+    cmds:
+      - npm run dev -w @monopsony/web
+
+  admin:
+    desc: Run the admin app dev server
+    cmds:
+      - npm run dev -w @monopsony/admin
+
+  assets:build:
+    desc: Regenerate the bundled glTF token models
+    cmds:
+      - npm run build -w @monopsony/board-assets
+
+  assets:check:
+    desc: Inspect a .glb before uploading (task assets:check -- path/to/model.glb)
+    cmds:
+      - npm run check -w @monopsony/board-assets -- {{.CLI_ARGS}}
+
+  assets:upload:
+    desc: Upload files to the admin asset store (task assets:upload -- a.glb b.png)
+    dotenv: [".env"]
+    cmds:
+      - npm run upload -w @monopsony/board-assets -- {{.CLI_ARGS}}
+
+  up:
+    desc: Start Postgres + Redis via docker compose
+    cmds:
+      - docker compose -f deploy/docker-compose.yml up -d
+
+  down:
+    cmds:
+      - docker compose -f deploy/docker-compose.yml down
