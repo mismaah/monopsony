@@ -5,6 +5,7 @@ import Home from "@/routes/Home";
 import LobbyPage from "@/routes/Lobby";
 import RoomPage from "@/routes/Room";
 import ShopPage from "@/routes/Shop";
+import CollectionPage from "@/routes/Collection";
 import AccountPage from "@/routes/Account";
 import { TopBar } from "@/hud/TopBar";
 
@@ -57,6 +58,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <ShopPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/collection"
+            element={
+              <RequireAuth>
+                <CollectionPage />
               </RequireAuth>
             }
           />

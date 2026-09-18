@@ -1,28 +1,11 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/api/http";
 import { useAuth } from "@/store/auth";
 import { Button, Card } from "@/lib/ui";
-import { TokenPreview } from "@/game3d/Preview";
 import { useCosmetics } from "@/store/cosmetics";
-import type { Manifest } from "@/game3d/skins";
 import { AdSlot } from "@/hud/AdSlot";
-
-interface Item {
-  id: string;
-  slot: string;
-  name: string;
-  description: string;
-  priceCents: number;
-  currency: string;
-  tierRequired?: string;
-  manifest: Manifest;
-  owned: boolean;
-  equipped: boolean;
-  locked?: string;
-}
-
-const slotLabels: Record<string, string> = { token: "Tokens", board: "Boards", dice: "Dice", buildings: "Buildings", cards: "Cards" };
+import { CosmeticCard, EquipButton, slotLabels, type CosmeticItem as Item } from "@/hud/CosmeticCard";
 
 export default function ShopPage() {
   const { user, caps, reloadMe } = useAuth();
@@ -83,7 +66,15 @@ export default function ShopPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-4">
-      {purchased && <div className="bg-emerald-500/15 border border-emerald-500/40 rounded-lg px-4 py-2 text-sm">Thanks! Your purchase is in your collection.</div>}
+      {purchased && (
+        <div className="bg-emerald-500/15 border border-emerald-500/40 rounded-lg px-4 py-2 text-sm">
+          Thanks! Your purchase is in{" "}
+          <Link to="/collection" className="underline hover:text-emerald-200">
+            your collection
+          </Link>
+          .
+        </div>
+      )}
       {caps?.tier !== "premium" && (
         <Card>
           <div className="flex items-center gap-4">
@@ -107,34 +98,26 @@ export default function ShopPage() {
           <Card key={slot} title={`${slotLabels[slot] ?? slot}${allowed ? "" : " · premium slot"}`}>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {list.map((item) => (
-                <div key={item.id} className={`rounded-lg border p-3 flex flex-col gap-2 ${item.equipped ? "border-emerald-400" : "border-slate-800"} ${item.locked === "tier" || item.locked === "slot" ? "opacity-60" : ""}`}>
-                  <div className="h-24 rounded bg-slate-950/60">
-                    {slot === "token" && <TokenPreview itemId={item.id} manifest={item.manifest} color={item.manifest.color} />}
-                    {slot !== "token" && <div className="h-full grid place-items-center text-3xl">{slot === "dice" ? "🎲" : slot === "board" ? "🗺️" : "🏠"}</div>}
-                  </div>
-                  <div>
-                    <div className="font-medium text-sm">{item.name}</div>
-                    {item.description && <div className="text-xs text-slate-400">{item.description}</div>}
-                  </div>
-                  <div className="mt-auto flex items-center gap-2">
-                    <span className="text-xs text-slate-400">
-                      {item.tierRequired ? "premium" : item.priceCents ? `$${(item.priceCents / 100).toFixed(2)}` : "free"}
-                    </span>
-                    <span className="flex-1" />
-                    {item.locked === "purchase" && (
-                      <Button disabled={busy === item.id || user?.guest} onClick={() => buy(item)}>
-                        Buy
-                      </Button>
-                    )}
-                    {item.locked === "tier" && <span className="text-xs text-amber-300">premium</span>}
-                    {item.locked === "slot" && <span className="text-xs text-amber-300">premium slot</span>}
-                    {!item.locked && (
-                      <Button variant={item.equipped ? "secondary" : "primary"} disabled={busy === item.id} onClick={() => equip(item)}>
-                        {item.equipped ? "Equipped" : "Equip"}
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                <CosmeticCard
+                  key={item.id}
+                  item={item}
+                  footer={
+                    <>
+                      <span className="text-xs text-slate-400">
+                        {item.tierRequired ? "premium" : item.priceCents ? `$${(item.priceCents / 100).toFixed(2)}` : "free"}
+                      </span>
+                      <span className="flex-1" />
+                      {item.locked === "purchase" && (
+                        <Button disabled={busy === item.id || user?.guest} onClick={() => buy(item)}>
+                          Buy
+                        </Button>
+                      )}
+                      {item.locked === "tier" && <span className="text-xs text-amber-300">premium</span>}
+                      {item.locked === "slot" && <span className="text-xs text-amber-300">premium slot</span>}
+                      {!item.locked && <EquipButton item={item} busy={busy === item.id} onEquip={equip} />}
+                    </>
+                  }
+                />
               ))}
             </div>
           </Card>

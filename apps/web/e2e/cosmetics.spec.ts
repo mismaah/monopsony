@@ -49,3 +49,22 @@ test("equipping a cosmetic shows up on another player's client", async ({ browse
   await ctxA.close();
   await ctxB.close();
 });
+
+test("the collection page lists owned items and switches the loadout", async ({ page }) => {
+  await guest(page, "Carol");
+  await page.getByRole("link", { name: "Collection" }).click();
+  await expect(page).toHaveURL(/\/collection$/);
+
+  // Free items are owned by default; paid ones are not in the collection.
+  const cone = page.locator("div", { has: page.getByText("Cone", { exact: true }) }).filter({ has: page.getByRole("button", { name: /Equip/ }) }).last();
+  await expect(cone).toBeVisible();
+  await expect(page.getByRole("button", { name: "Buy" })).toHaveCount(0);
+
+  await cone.getByRole("button", { name: "Equip" }).click();
+  await expect(cone.getByRole("button", { name: "Equipped" })).toBeVisible();
+
+  // "Use default" clears the slot again.
+  await page.getByRole("button", { name: "Use default" }).first().click();
+  await expect(cone.getByRole("button", { name: "Equip", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use default" })).toHaveCount(0);
+});

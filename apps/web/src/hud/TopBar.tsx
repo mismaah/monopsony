@@ -16,6 +16,7 @@ export function TopBar() {
         <nav className="flex gap-3 text-sm text-slate-300">
           <Link to="/lobby" className="hover:text-white">Tables</Link>
           <Link to="/shop" className="hover:text-white">Shop</Link>
+          <Link to="/collection" className="hover:text-white">Collection</Link>
           <Link to="/account" className="hover:text-white">Account</Link>
         </nav>
       )}
