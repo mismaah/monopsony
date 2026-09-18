@@ -4,9 +4,13 @@ import { useGLTF } from "@react-three/drei";
 import type { ModelRef, TokenSkin } from "./skins";
 import tophatUrl from "@monopsony/board-assets/models/tophat.glb?url";
 import rocketUrl from "@monopsony/board-assets/models/rocket.glb?url";
+import crownUrl from "@monopsony/board-assets/models/crown.glb?url";
+import trophyUrl from "@monopsony/board-assets/models/trophy.glb?url";
+import carUrl from "@monopsony/board-assets/models/car.glb?url";
+import kingUrl from "@monopsony/board-assets/models/king.glb?url";
 
 /** Models bundled with the client; manifests reference them by name. */
-export const BUILTIN_MODELS: Record<string, string> = { tophat: tophatUrl, rocket: rocketUrl };
+export const BUILTIN_MODELS: Record<string, string> = { tophat: tophatUrl, rocket: rocketUrl, crown: crownUrl, trophy: trophyUrl, car: carUrl, king: kingUrl };
 
 export function modelURL(model: ModelRef | undefined): string | null {
   if (!model) return null;
@@ -113,6 +117,13 @@ export function BuiltinShape({ skin, color, active = false, castShadow = true }:
       return (
         <mesh castShadow={castShadow} position={[0, 0.25, 0]}>
           <octahedronGeometry args={[0.24, 0]} />
+          {mat}
+        </mesh>
+      );
+    case "pyramid":
+      return (
+        <mesh castShadow={castShadow} position={[0, 0.21, 0]} rotation={[0, Math.PI / 4, 0]}>
+          <coneGeometry args={[0.26, 0.42, 4]} />
           {mat}
         </mesh>
       );

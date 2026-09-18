@@ -31,6 +31,7 @@ const templates: Record<string, Record<string, unknown>[]> = {
   token: [
     { builtin: "token.gem", color: "#7dd3fc" },
     { model: { builtin: "tophat" }, material: { metalness: 0.1, roughness: 0.6 } },
+    { model: { builtin: "crown" }, material: { metalness: 0.45, roughness: 0.35 } },
     { model: { url: "/media/<uploaded>.glb", scale: 1, offset: [0, 0, 0], rotation: [0, 0, 0] } },
   ],
   board: [{ builtin: "board.midnight" }, { palette: { table: "#0e3a4a", tile: "#f1e9d2", tileEdge: "#082430", text: "#0f172a", centre: "#cfe6df", house: "#10b981", hotel: "#f5c451", mortgageTint: "#9a9385" } }],

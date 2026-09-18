@@ -1,5 +1,7 @@
 # Go
 server/bin/
+server/tmp/
+server/build-errors.log
 *.exe
 *.test
 *.out

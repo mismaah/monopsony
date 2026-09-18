@@ -71,7 +71,7 @@ func (r *Resolver) SetPlan(p Plan) {
 }
 
 // normalize ensures slice fields are never nil so they serialize as [] rather
-// than null (records persisted before a field existed unmarshal to nil).
+// than null.
 func (c *Capabilities) normalize() {
 	if c.CosmeticSlots == nil {
 		c.CosmeticSlots = []string{}
@@ -79,15 +79,19 @@ func (c *Capabilities) normalize() {
 }
 
 // Load replaces the defaults with plans persisted by the admin, if any.
+// A stored record only overrides the fields it contains: anything missing
+// (a capability added after the row was saved) keeps the default for that
+// tier instead of collapsing to zero, which would silently lock it off.
 func (r *Resolver) Load(ctx context.Context, st store.Store) error {
 	recs, err := st.ListPlans(ctx)
 	if err != nil {
 		return err
 	}
+	defaults := DefaultPlans()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, rec := range recs {
-		var caps Capabilities
+		caps := defaults[rec.Tier].Caps
 		if err := json.Unmarshal(rec.Caps, &caps); err != nil {
 			return err
 		}

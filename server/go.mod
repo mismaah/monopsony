@@ -6,6 +6,7 @@ require (
 	github.com/coder/websocket v1.8.13
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.7.5
+	github.com/joho/godotenv v1.5.1
 	github.com/prometheus/client_golang v1.24.1
 	github.com/redis/go-redis/v9 v9.22.0
 	golang.org/x/crypto v0.39.0

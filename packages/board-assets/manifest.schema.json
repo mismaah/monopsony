@@ -20,7 +20,7 @@
       "description": "A glTF 2.0 model (.glb). Either url (uploaded asset or https) or builtin (bundled with the client).",
       "properties": {
         "url": { "type": "string", "pattern": "^(https?://|/media/)" },
-        "builtin": { "type": "string", "enum": ["tophat", "rocket"] },
+        "builtin": { "type": "string", "enum": ["tophat", "rocket", "crown", "trophy", "car", "king"] },
         "scale": { "type": "number", "minimum": 0, "maximum": 100 },
         "offset": { "$ref": "#/$defs/vec3" },
         "rotation": { "$ref": "#/$defs/vec3", "description": "Euler XYZ in radians." },

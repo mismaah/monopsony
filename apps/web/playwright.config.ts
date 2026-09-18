@@ -38,7 +38,7 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 180_000,
       env: {
-        MONOPSONY_ADDR: `:${API_PORT}`,
+        MONOPSONY_ADDR: `127.0.0.1:${API_PORT}`,
         MONOPSONY_METRICS_ADDR: "off",
         MONOPSONY_CORS_ORIGINS: `http://localhost:${WEB_PORT}`,
         MONOPSONY_PUBLIC_URL: `http://localhost:${WEB_PORT}`,

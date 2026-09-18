@@ -34,19 +34,19 @@ tasks:
       - go run ./cmd/sim -games {{.GAMES | default 1000}} -seed {{.SEED | default 42}}
 
   server:
-    desc: Run the API/WS server (loads .env if present)
+    desc: Run the API/WS server with live reload via air (loads .env if present)
     dir: "{{.GO_DIR}}"
     dotenv: ["../.env"]
     cmds:
-      - go run ./cmd/server
+      - air
 
   server:node2:
     desc: Run a second server node on :8081 (needs MONOPSONY_REDIS_URL + Postgres in .env)
     dir: "{{.GO_DIR}}"
     dotenv: ["../.env"]
     env:
-      MONOPSONY_ADDR: ":8081"
-      MONOPSONY_METRICS_ADDR: ":9101"
+      MONOPSONY_ADDR: "127.0.0.1:8081"
+      MONOPSONY_METRICS_ADDR: "127.0.0.1:9101"
       MONOPSONY_NODE_ID: node-2
     cmds:
       - go run ./cmd/server

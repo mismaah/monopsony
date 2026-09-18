@@ -3,7 +3,7 @@
 // built-in looks; a manifest can pick one by `builtin`, override colours
 // and PBR parameters, or point at a glTF model (bundled or uploaded).
 
-export type TokenShape = "pawn" | "cone" | "sphere" | "ring" | "cube" | "gem";
+export type TokenShape = "pawn" | "cone" | "sphere" | "ring" | "cube" | "gem" | "pyramid";
 
 /** Mirror of server/internal/cosmetics/manifest.go (validated there). */
 export interface Manifest {
@@ -45,6 +45,7 @@ export const TOKENS: Record<string, TokenSkin> = {
   "token.ring": { id: "token.ring", name: "Ring", shape: "ring", metalness: 0.9, roughness: 0.15, color: "#e8c27a" },
   "token.cube": { id: "token.cube", name: "Block", shape: "cube", metalness: 0.1, roughness: 0.8 },
   "token.gem": { id: "token.gem", name: "Gem", shape: "gem", metalness: 0.3, roughness: 0.05, emissive: "#222" },
+  "token.pyramid": { id: "token.pyramid", name: "Pyramid", shape: "pyramid", metalness: 0.15, roughness: 0.7 },
 };
 
 export interface BoardSkin {

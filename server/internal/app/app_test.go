@@ -209,6 +209,30 @@ func TestShopSubscribeAndLoadout(t *testing.T) {
 	if len(items) < 5 {
 		t.Fatalf("catalog too small: %d", len(items))
 	}
+	// The seeded token catalog: five free (owned by everyone), five premium
+	// (tier-locked until subscribed or granted), plus one-off purchases.
+	var freeTokens, premiumTokens int
+	for _, raw := range items {
+		it := raw.(map[string]any)
+		if it["slot"] != "token" {
+			continue
+		}
+		switch {
+		case it["tierRequired"] == "premium":
+			premiumTokens++
+			if it["locked"] != "tier" || it["owned"] == true {
+				t.Fatalf("premium token should be tier-locked for a free user: %v", it)
+			}
+		case it["priceCents"].(float64) == 0:
+			freeTokens++
+			if it["owned"] != true || it["locked"] != nil {
+				t.Fatalf("free token should be owned and unlocked: %v", it)
+			}
+		}
+	}
+	if freeTokens != 5 || premiumTokens != 5 {
+		t.Fatalf("expected 5 free + 5 premium tokens, got %d + %d", freeTokens, premiumTokens)
+	}
 	// Free item equips; premium-only board is locked on the free tier.
 	c.call("PUT", "/api/me/loadout", map[string]string{"slot": "token", "itemId": "token.cone"}, 200)
 	c.call("PUT", "/api/me/loadout", map[string]string{"slot": "board", "itemId": "board.midnight"}, 400)
@@ -228,6 +252,13 @@ func TestShopSubscribeAndLoadout(t *testing.T) {
 		t.Fatalf("expected premium after checkout: %v", me["caps"])
 	}
 	c.call("PUT", "/api/me/loadout", map[string]string{"slot": "board", "itemId": "board.midnight"}, 200)
+	// Premium tokens come with the plan: no purchase step.
+	c.call("PUT", "/api/me/loadout", map[string]string{"slot": "token", "itemId": "token.crown"}, 200)
+	for _, raw := range c.call("GET", "/api/shop/catalog", nil, 200)["items"].([]any) {
+		if it := raw.(map[string]any); it["id"] == "token.crown" && (it["owned"] != true || it["locked"] != nil) {
+			t.Fatalf("premium token should be owned on the premium plan: %v", it)
+		}
+	}
 
 	// Buy a paid token and equip it.
 	buy := c.call("POST", "/api/shop/checkout", map[string]string{"itemId": "token.gem"}, 200)
@@ -322,6 +353,15 @@ func TestAdminAPI(t *testing.T) {
 	admin.call("POST", "/admin/api/users/"+player.user["id"].(string)+"/grant", map[string]string{"cosmeticId": "token.gem"}, 204)
 	admin.call("POST", "/admin/api/users/"+player.user["id"].(string)+"/grant", map[string]string{"cosmeticId": "nope"}, 404)
 	player.call("PUT", "/api/me/loadout", map[string]string{"slot": "token", "itemId": "token.gem"}, 200)
+	// Granting a premium-tier item unlocks it for a free player too.
+	player.call("PUT", "/api/me/loadout", map[string]string{"slot": "token", "itemId": "token.rocket"}, 400)
+	admin.call("POST", "/admin/api/users/"+player.user["id"].(string)+"/grant", map[string]string{"cosmeticId": "token.rocket"}, 204)
+	player.call("PUT", "/api/me/loadout", map[string]string{"slot": "token", "itemId": "token.rocket"}, 200)
+	for _, raw := range player.call("GET", "/api/shop/catalog", nil, 200)["items"].([]any) {
+		if it := raw.(map[string]any); it["id"] == "token.rocket" && (it["owned"] != true || it["locked"] != nil || it["equipped"] != true) {
+			t.Fatalf("granted premium token should be owned, unlocked and equipped: %v", it)
+		}
+	}
 	admin.call("PATCH", "/admin/api/users/"+admin.call("GET", "/admin/api/me", nil, 200)["user"].(map[string]any)["id"].(string), map[string]any{"banned": true}, 400)
 	admin.call("PATCH", "/admin/api/users/"+player.user["id"].(string), map[string]any{"banned": true}, 200)
 	player.call("GET", "/api/me", nil, 401)

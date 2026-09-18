@@ -14,6 +14,6 @@
     "optimize": "npx --yes @gltf-transform/cli optimize",
     "upload": "node scripts/upload.mjs",
     "typecheck": "node --check scripts/glb.mjs && node --check scripts/make-models.mjs && node --check scripts/check-glb.mjs && node --check scripts/upload.mjs",
-    "test": "node scripts/make-models.mjs && node scripts/check-glb.mjs models/tophat.glb && node scripts/check-glb.mjs models/rocket.glb"
+    "test": "node scripts/make-models.mjs && node scripts/check-glb.mjs models/tophat.glb && node scripts/check-glb.mjs models/rocket.glb && node scripts/check-glb.mjs models/crown.glb && node scripts/check-glb.mjs models/trophy.glb && node scripts/check-glb.mjs models/car.glb && node scripts/check-glb.mjs models/king.glb"
   }
 }

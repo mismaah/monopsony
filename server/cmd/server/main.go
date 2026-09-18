@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"monopsony/server/internal/app"
 	"monopsony/server/internal/auth"
 	"monopsony/server/internal/billing"
@@ -80,6 +82,11 @@ func newLogger() *slog.Logger {
 }
 
 func main() {
+	// Dev convenience: pick up the repo-root .env (or one in the cwd) so
+	// running the binary directly (air, go run) matches `task server`.
+	// Variables already set in the environment win; missing files are ignored.
+	_ = godotenv.Load("../.env", ".env")
+
 	log := newLogger()
 	slog.SetDefault(log)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
