@@ -102,7 +102,7 @@ export default function ShopPage() {
       {slots.map((slot) => {
         const list = items.filter((i) => i.slot === slot);
         if (list.length === 0) return null;
-        const allowed = caps?.cosmeticSlots.includes(slot);
+        const allowed = caps?.cosmeticSlots?.includes(slot) ?? false;
         return (
           <Card key={slot} title={`${slotLabels[slot] ?? slot}${allowed ? "" : " · premium slot"}`}>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

@@ -20,7 +20,7 @@ export interface Caps {
   showAds: boolean;
   statsHistoryDays: number;
   maxConcurrentGames: number;
-  cosmeticSlots: string[];
+  cosmeticSlots: string[] | null;
 }
 
 interface AuthState {

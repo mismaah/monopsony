@@ -4,10 +4,20 @@ import { api } from "@/api/http";
 import { useAuth } from "@/store/auth";
 import { Button, Card } from "@/lib/ui";
 
+interface PlanCaps {
+  maxPlayersPerRoom: number;
+  privateRooms: boolean;
+  houseRules: boolean;
+  showAds: boolean;
+  statsHistoryDays: number;
+  // Go serialises a nil slice as null, so tolerate a missing list.
+  cosmeticSlots: string[] | null;
+}
+
 interface Billing {
   subscription: { status: string; tier: string; periodEnd: string } | null;
   purchases: { id: string; sku: string; amountCents: number; currency: string; createdAt: string }[];
-  plans: { tier: string; caps: Record<string, unknown> }[];
+  plans: { tier: string; caps: PlanCaps }[];
   provider: string;
 }
 
@@ -58,12 +68,12 @@ export default function AccountPage() {
                 <div key={p.tier} className={`rounded-lg border p-3 ${p.tier === caps?.tier ? "border-emerald-400" : "border-slate-800"}`}>
                   <div className="font-semibold capitalize mb-1">{p.tier}</div>
                   <ul className="text-slate-300 space-y-0.5">
-                    <li>Up to {String(p.caps.maxPlayersPerRoom)} players per table</li>
+                    <li>Up to {p.caps.maxPlayersPerRoom} players per table</li>
                     <li>{p.caps.privateRooms ? "Private tables with invite codes" : "Public tables only"}</li>
                     <li>{p.caps.houseRules ? "House rules" : "Standard rules only"}</li>
                     <li>{p.caps.showAds ? "Ad-supported" : "No ads"}</li>
-                    <li>{Number(p.caps.statsHistoryDays) === 0 ? "Full match history" : `${String(p.caps.statsHistoryDays)}-day match history`}</li>
-                    <li>Cosmetic slots: {(p.caps.cosmeticSlots as string[]).join(", ")}</li>
+                    <li>{p.caps.statsHistoryDays === 0 ? "Full match history" : `${p.caps.statsHistoryDays}-day match history`}</li>
+                    <li>Cosmetic slots: {p.caps.cosmeticSlots?.length ? p.caps.cosmeticSlots.join(", ") : "none"}</li>
                   </ul>
                 </div>
               ))}
