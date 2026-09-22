@@ -1,14 +1,15 @@
-# Production stack: the Monopsony image + Redis, using the Postgres that already
-# runs on the host and the cloudflared that already runs on the host (Cloudflare
-# terminates TLS; the origin is never reachable from the internet directly).
+# Production stack: the Monopsony image + Redis, reusing the Postgres container
+# and the cloudflared already running on the box (Cloudflare terminates TLS; the
+# origin is never reachable from the internet directly).
 # Settings come from deploy/.env (see .env.example).
 #
 #   docker compose -f deploy/docker-compose.prod.yml up -d --build
 #
-# The app reaches the host's Postgres through host.docker.internal, so Postgres
-# must accept connections from the Docker bridge (README). The app itself listens
-# on the host's loopback only (127.0.0.1:8080): point the tunnel's public hostname
-# at http://localhost:8080 and nothing on the LAN can bypass Cloudflare.
+# The app joins the Postgres container's own network (POSTGRES_NETWORK) and
+# reaches it by container name, so it does not depend on Postgres publishing a
+# host port. The app listens on the host's loopback only (127.0.0.1:8080): point
+# the tunnel's public hostname at http://localhost:8080 and nothing on the LAN
+# can bypass Cloudflare.
 #
 # `--scale app=3` runs several nodes (each takes the next loopback port; games
 # are reachable from any node through Redis, so no sticky sessions).
@@ -30,15 +31,15 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    extra_hosts:
-      # Linux needs this for host.docker.internal; Docker Desktop provides it anyway.
-      - "host.docker.internal:host-gateway"
+    networks:
+      - default    # redis
+      - db         # the existing Postgres container
     ports:
       - "127.0.0.1:8080-8089:8080"
     volumes:
       - media:/app/data/assets
     environment:
-      MONOPSONY_DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:?}?sslmode=${POSTGRES_SSLMODE:-disable}
+      MONOPSONY_DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:?}?sslmode=${POSTGRES_SSLMODE:-disable}
       MONOPSONY_REDIS_URL: redis://redis:6379/0
       MONOPSONY_ASSET_DIR: /app/data/assets
       MONOPSONY_METRICS_ADDR: ":9100"
@@ -61,6 +62,13 @@ services:
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
     restart: unless-stopped
+
+networks:
+  # The network the Postgres container is already attached to. Find it with:
+  #   docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' postgres
+  db:
+    external: true
+    name: ${POSTGRES_NETWORK:?the network the Postgres container is on}
 
 volumes:
   media:
