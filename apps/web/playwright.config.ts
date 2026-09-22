@@ -39,6 +39,10 @@ export default defineConfig({
       timeout: 180_000,
       env: {
         MONOPSONY_ADDR: `127.0.0.1:${API_PORT}`,
+        // The server also reads the repo-root .env (godotenv never overrides
+        // a set variable), so pin the throwaway stores explicitly.
+        MONOPSONY_DATABASE_URL: "",
+        MONOPSONY_REDIS_URL: "",
         MONOPSONY_METRICS_ADDR: "off",
         MONOPSONY_CORS_ORIGINS: `http://localhost:${WEB_PORT}`,
         MONOPSONY_PUBLIC_URL: `http://localhost:${WEB_PORT}`,

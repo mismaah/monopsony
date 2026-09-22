@@ -115,7 +115,37 @@ The logo is an emerald octagon coin with an "M" (eight sides: eight seats, eight
 
 ## Production
 
-`docker compose -f deploy/docker-compose.prod.yml up --build` builds a single image (Go server + both SPAs) next to Postgres and Redis. Set `MONOPSONY_JWT_SECRET`, `MONOPSONY_PUBLIC_URL`, `POSTGRES_PASSWORD` and, when going live, `MONOPSONY_BILLING_PROVIDER=stripe` with the Stripe keys and a premium `priceId` on the plan (admin → Plans). `--scale app=N` runs several nodes (each gets a host port from `8080-8089`; put your load balancer in front — no sticky sessions needed). Scrape `:9100/metrics` from inside the network; keep `MONOPSONY_TRUST_PROXY=1` only when the balancer sets `X-Forwarded-For`. Uploaded assets live in the `media` volume; sync it to object storage/CDN if you run more than one node.
+The stack in `deploy/` is built for a box you own (a home server works) that already runs **Postgres** and a **Cloudflare Tunnel**: the compose starts only the app image and Redis. No port forwarding, Cloudflare terminates TLS, and the origin is reachable only through the tunnel.
+
+```bash
+cp deploy/.env.example deploy/.env      # then fill it in (secrets, public URL, admin email, Postgres creds)
+docker compose -f deploy/docker-compose.prod.yml up -d --build
+curl http://127.0.0.1:8080/healthz      # ok
+```
+
+One-time setup on the box:
+
+1. **Postgres** — create the role and database (`CREATE USER monopsony PASSWORD '…'; CREATE DATABASE monopsony OWNER monopsony;`); the server applies its own migrations on boot. The container connects to `host.docker.internal`, i.e. from the Docker bridge, so Postgres must listen beyond loopback and allow that subnet:
+   - `postgresql.conf`: `listen_addresses = 'localhost,172.17.0.1'` (the `docker0` address; or `'*'` if the host firewall already blocks 5432 from the LAN),
+   - `pg_hba.conf`: `host monopsony monopsony 172.16.0.0/12 scram-sha-256`, then reload.
+2. **Tunnel** — in the tunnel already running on the box, add a public hostname (e.g. `beta.example.com`) → service `http://localhost:8080`. The compose binds the app to the host's loopback only, so nothing on the LAN reaches it without going through Cloudflare. WebSockets pass through by default. (If that `cloudflared` is a container rather than a host service, remove `ports` from `app`, attach it to the tunnel container's network and use `http://app:8080`.)
+3. **Country restriction** — your zone → Security → WAF → Custom rules: expression `(ip.src.country ne "MV")`, action *Block*. It is IP geolocation, so VPNs get around it in both directions. If you switch billing to Stripe, exempt the webhook: `(ip.src.country ne "MV" and not starts_with(http.request.uri.path, "/api/billing/webhook"))`.
+4. **Closed beta (optional)** — Zero Trust → Access → Applications → *Self-hosted* on the same hostname, with a policy of Country = MV plus an email allowlist or one-time PIN. Free for up to 50 users and needs no app changes.
+5. Security → Bots → turn *Bot Fight Mode* off (it interferes with API/WebSocket traffic).
+
+Notes:
+
+- `MONOPSONY_TRUST_PROXY` defaults to `1` in the prod compose because cloudflared is the only thing that can reach the app and it sets `X-Forwarded-For` to the visitor. Keep the port bound to `127.0.0.1` (never `0.0.0.0`), or LAN clients bypass both the country rule and the real-IP rate limits.
+- `MONOPSONY_ENV=prod` (baked into the image) makes cookies `Secure`, which is why the stack only works behind HTTPS.
+- `--scale app=N` runs several nodes; games are reachable from any node through Redis, so no sticky sessions. Uploaded assets live in the `media` volume; sync it to object storage if you run more than one node.
+- Metrics are on `:9100` inside the compose network only.
+- Backups: the host's Postgres holds users and games; the `media` volume holds uploaded cosmetics. Something like this on a schedule:
+
+  ```bash
+  pg_dump -U monopsony monopsony | gzip > "backup-$(date +%Y%m%d).sql.gz"
+  ```
+
+- Going live with real money: `MONOPSONY_BILLING_PROVIDER=stripe`, the Stripe keys, and a premium `priceId` on the plan (admin → Plans).
 
 ## Cosmetic assets
 

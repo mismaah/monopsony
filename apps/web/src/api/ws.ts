@@ -3,6 +3,8 @@ import { getAccessToken, refreshSession } from "./http";
 
 type Handler = (payload: unknown, env: Envelope) => void;
 
+const KEEPALIVE_MS = 30_000;
+
 /**
  * GameSocket keeps one WebSocket per tab, reconnects with backoff, and turns
  * Command frames into promises resolved by the matching Ack/Error.
@@ -16,6 +18,8 @@ export class GameSocket {
   private backoff = 500;
   private closed = false;
   private opening = false;
+  private keepalive: ReturnType<typeof setInterval> | null = null;
+  private lastFrameAt = 0;
   status: "connecting" | "open" | "closed" = "closed";
   onStatus?: (s: GameSocket["status"]) => void;
 
@@ -28,6 +32,7 @@ export class GameSocket {
     this.closed = true;
     const ws = this.ws;
     this.ws = null;
+    this.stopKeepalive();
     ws?.close();
     this.pending.forEach((p) => p.reject(new SocketError("disconnected", "connection closed")));
     this.pending.clear();
@@ -72,6 +77,7 @@ export class GameSocket {
       }
       this.backoff = 500;
       this.setStatus("open");
+      this.startKeepalive(ws);
       // Re-subscribe after a reconnect, asking only for the events we missed.
       for (const [gameId, lastSeq] of this.joined) {
         this.raw({ t: "JoinGame", p: { gameId, lastSeq } });
@@ -79,7 +85,9 @@ export class GameSocket {
     };
     ws.onmessage = (m) => {
       if (!current()) return;
+      this.lastFrameAt = Date.now();
       const env = JSON.parse(m.data) as Envelope;
+      if (env.t === "Pong") return;
       if (env.ref && (env.t === "Ack" || env.t === "Error")) {
         const p = this.pending.get(env.ref);
         if (p) {
@@ -117,6 +125,7 @@ export class GameSocket {
     ws.onclose = () => {
       if (!current()) return; // superseded or closed on purpose
       this.ws = null;
+      this.stopKeepalive();
       this.setStatus("closed");
       this.pending.forEach((p) => p.reject(new SocketError("disconnected", "connection lost")));
       this.pending.clear();
@@ -125,6 +134,33 @@ export class GameSocket {
         this.backoff = Math.min(this.backoff * 2, 8000);
       }
     };
+  }
+
+  /**
+   * Proxies in front of the server (Cloudflare drops WebSockets idle for
+   * ~100s) close a socket that carries no traffic while a player thinks, so
+   * ping every 30s. A socket that has answered nothing for two intervals is
+   * closed locally, which routes through the normal reconnect + replay path.
+   */
+  private startKeepalive(ws: WebSocket) {
+    this.stopKeepalive();
+    this.lastFrameAt = Date.now();
+    this.keepalive = setInterval(() => {
+      if (this.ws !== ws || ws.readyState !== WebSocket.OPEN) {
+        this.stopKeepalive();
+        return;
+      }
+      if (Date.now() - this.lastFrameAt > KEEPALIVE_MS * 2) {
+        ws.close();
+        return;
+      }
+      this.raw({ t: "Ping" });
+    }, KEEPALIVE_MS);
+  }
+
+  private stopKeepalive() {
+    if (this.keepalive) clearInterval(this.keepalive);
+    this.keepalive = null;
   }
 
   private setStatus(s: GameSocket["status"]) {

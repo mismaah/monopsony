@@ -8,6 +8,7 @@ COPY apps/web/package.json apps/web/
 COPY apps/admin/package.json apps/admin/
 COPY packages/protocol/package.json packages/protocol/
 COPY packages/board-assets/package.json packages/board-assets/
+COPY packages/cosmetics/package.json packages/cosmetics/
 RUN npm ci
 COPY apps apps
 COPY packages packages
