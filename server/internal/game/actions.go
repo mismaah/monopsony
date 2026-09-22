@@ -468,7 +468,7 @@ func (e *engine) proposeTrade(p *Player, c *ProposeTrade) error {
 		return errf(ErrInvalid, "a trade is already pending")
 	}
 	t := &Trade{
-		FromID: p.ID, ToID: c.ToID, Give: c.Give, Receive: c.Receive, ResumePhase: e.s.Turn.Phase,
+		FromID: p.ID, ToID: c.ToID, Give: c.Give.normalized(), Receive: c.Receive.normalized(), ResumePhase: e.s.Turn.Phase,
 	}
 	if err := e.validateTrade(t); err != nil {
 		return err

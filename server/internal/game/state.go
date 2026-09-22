@@ -68,6 +68,16 @@ type TradeSide struct {
 	JailCards  int   `json:"jailCards"`
 }
 
+// normalized returns the side with a non-nil Properties slice. A nil slice
+// marshals to JSON null, and clients expect an array (a cash-only offer from a
+// bot, or a client that omits the key, otherwise ships null over the wire).
+func (s TradeSide) normalized() TradeSide {
+	if s.Properties == nil {
+		s.Properties = []int{}
+	}
+	return s
+}
+
 // Trade is a pending proposal.
 type Trade struct {
 	ID          string    `json:"id"`

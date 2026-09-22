@@ -46,6 +46,9 @@ export function TradeBanner() {
   const name = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
   const seat = (id: string) => seatColors[Math.max(0, state.players.findIndex((p) => p.id === id)) % seatColors.length];
   const interestPct = config.rules.mortgageInterestPct;
+  // An older server (or one that skipped normalising) can send properties as
+  // null for a cash-only side; treat it as the empty list rather than crash.
+  const props = (side: TradeSide) => side.properties ?? [];
 
   /** Compact deed: colour band, price, headline rent, and anything the recipient should know before accepting. */
   const DeedCard = ({ space, fromId, toId }: { space: number; fromId: string; toId: string }) => {
@@ -58,7 +61,7 @@ export function TradeBanner() {
     // Colour-group maths after the swap: does this hand the recipient a full set, or break the giver's?
     const group = def.group;
     const inGroup = group ? config.spaces.map((_, j) => j).filter((j) => config.spaces[j].group === group) : [];
-    const ownerAfter = (j: number) => (t.give.properties.includes(j) ? t.toId : t.receive.properties.includes(j) ? t.fromId : state.spaces[j].ownerId);
+    const ownerAfter = (j: number) => (props(t.give).includes(j) ? t.toId : props(t.receive).includes(j) ? t.fromId : state.spaces[j].ownerId);
     const recvAfter = inGroup.filter((j) => ownerAfter(j) === toId).length;
     const giverBefore = inGroup.filter((j) => state.spaces[j].ownerId === fromId).length;
     const completesSet = inGroup.length > 0 && recvAfter === inGroup.length;
@@ -100,7 +103,7 @@ export function TradeBanner() {
   };
 
   const Side = ({ side, fromId, toId, label, tone }: { side: TradeSide; fromId: string; toId: string; label: string; tone: string }) => {
-    const empty = !side.cash && !side.properties.length && !side.jailCards;
+    const empty = !side.cash && !props(side).length && !side.jailCards;
     return (
       <div className="flex-1 min-w-0">
         <div className={`text-[10px] uppercase tracking-wider mb-1.5 ${tone}`}>{label}</div>
@@ -108,7 +111,7 @@ export function TradeBanner() {
         <div className="flex flex-wrap gap-1.5">
           {side.cash > 0 && <Chip>💵 ${side.cash}</Chip>}
           {side.jailCards > 0 && <Chip>🃏 {side.jailCards} Get Out of Jail Free</Chip>}
-          {side.properties.map((i) => (
+          {props(side).map((i) => (
             <DeedCard key={i} space={i} fromId={fromId} toId={toId} />
           ))}
         </div>

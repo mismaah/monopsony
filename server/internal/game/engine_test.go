@@ -1,6 +1,7 @@
 package game
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 )
@@ -982,5 +983,24 @@ func TestSurrenderCreditorSendsDebtToBank(t *testing.T) {
 	evs := ap(t, s, &DeclareBankruptcy{Base{"b"}}, nil)
 	if ge, ok := hasEvent[GameEnded](evs); !ok || ge.WinnerID != "c" {
 		t.Fatalf("c should be last standing: %+v", evs)
+	}
+}
+
+// A cash-only side has no Properties slice; it must still reach the client as
+// an empty JSON array, because a null there crashes the trade panel.
+func TestTradeSidePropertiesNeverNull(t *testing.T) {
+	s := newTest(t, 2)
+	s.Spaces[1].OwnerID = "b"
+	ap(t, s, &ProposeTrade{Base: Base{"a"}, ToID: "b",
+		Give: TradeSide{Cash: 100}, Receive: TradeSide{Properties: []int{1}}}, nil)
+	if s.Trade.Give.Properties == nil || s.Trade.Receive.Properties == nil {
+		t.Fatal("pending trade kept a nil Properties slice")
+	}
+	blob, err := json.Marshal(s.Trade)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(blob, []byte(`"properties":null`)) {
+		t.Fatalf("trade marshalled properties as null: %s", blob)
 	}
 }
