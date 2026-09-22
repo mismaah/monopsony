@@ -5,6 +5,7 @@ import { useAuth } from "@/store/auth";
 import { Button, Card } from "@/lib/ui";
 import { useCosmetics } from "@/store/cosmetics";
 import { CosmeticCard, EquipButton, slotLabels, type CosmeticItem } from "@/hud/CosmeticCard";
+import { PreviewStage } from "@monopsony/cosmetics";
 
 /**
  * Everything the player owns (bought, free, or unlocked by their plan),
@@ -51,7 +52,7 @@ export default function CollectionPage() {
   const total = owned.length;
 
   return (
-    <div className="max-w-5xl mx-auto p-4 space-y-4">
+    <PreviewStage className="max-w-5xl mx-auto p-4 space-y-4">
       <div className="flex items-baseline gap-3">
         <h1 className="text-xl font-semibold">Your collection</h1>
         <span className="text-sm text-slate-400">
@@ -114,6 +115,6 @@ export default function CollectionPage() {
           </Card>
         );
       })}
-    </div>
+    </PreviewStage>
   );
 }

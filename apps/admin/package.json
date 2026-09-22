@@ -11,6 +11,7 @@
     "test": "echo \"no tests\""
   },
   "dependencies": {
+    "@monopsony/cosmetics": "*",
     "@monopsony/protocol": "*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -1,0 +1,25 @@
+{
+  "name": "@monopsony/cosmetics",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "How cosmetics look: manifest resolution, the builtin token/board/dice looks, the meshes that draw them, and the shared 3D previews used by the shop, the collection and the admin panel.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@monopsony/board-assets": "*",
+    "@react-three/drei": "^9.117.3",
+    "@react-three/fiber": "^8.17.10",
+    "react": "^18.3.1",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/three": "^0.170.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}

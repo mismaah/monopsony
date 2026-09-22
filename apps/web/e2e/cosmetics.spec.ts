@@ -56,6 +56,10 @@ test("the collection page lists owned items and switches the loadout", async ({ 
   await expect(page).toHaveURL(/\/collection$/);
 
   // Free items are owned by default; paid ones are not in the collection.
+  // Every slot gets a live 3D preview, all drawn on one shared canvas.
+  await expect(page.getByTestId("board-preview-board.classic")).toBeVisible();
+  await expect(page.getByTestId("dice-preview-dice.ivory")).toBeVisible();
+  await expect(page.locator("canvas")).toHaveCount(1);
   const cone = page.locator("div", { has: page.getByText("Cone", { exact: true }) }).filter({ has: page.getByRole("button", { name: /Equip/ }) }).last();
   await expect(cone).toBeVisible();
   await expect(page.getByRole("button", { name: "Buy" })).toHaveCount(0);

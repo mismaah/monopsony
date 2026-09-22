@@ -1,6 +1,5 @@
 import { Button } from "@/lib/ui";
-import { TokenPreview } from "@/game3d/Preview";
-import type { Manifest } from "@/game3d/skins";
+import { CosmeticPreview as Preview3D, type Manifest } from "@monopsony/cosmetics";
 
 /** A catalog entry decorated with the viewer's relationship to it (mirrors cosmetics.Item). */
 export interface CosmeticItem {
@@ -19,15 +18,9 @@ export interface CosmeticItem {
 
 export const slotLabels: Record<string, string> = { token: "Tokens", board: "Boards", dice: "Dice", buildings: "Buildings", cards: "Cards" };
 
+/** Live 3D look of the item; the page must sit inside a PreviewStage. */
 export function CosmeticPreview({ item }: { item: CosmeticItem }) {
-  return (
-    <div className="h-24 rounded bg-slate-950/60">
-      {item.slot === "token" && <TokenPreview itemId={item.id} manifest={item.manifest} color={item.manifest.color} />}
-      {item.slot !== "token" && (
-        <div className="h-full grid place-items-center text-3xl">{item.slot === "dice" ? "🎲" : item.slot === "board" ? "🗺️" : "🏠"}</div>
-      )}
-    </div>
-  );
+  return <Preview3D slot={item.slot} itemId={item.id} manifest={item.manifest} className="h-24 rounded bg-slate-950/60" />;
 }
 
 /**

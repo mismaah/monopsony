@@ -6,6 +6,7 @@ import { Button, Card } from "@/lib/ui";
 import { useCosmetics } from "@/store/cosmetics";
 import { AdSlot } from "@/hud/AdSlot";
 import { CosmeticCard, EquipButton, slotLabels, type CosmeticItem as Item } from "@/hud/CosmeticCard";
+import { PreviewStage } from "@monopsony/cosmetics";
 
 export default function ShopPage() {
   const { user, caps, reloadMe } = useAuth();
@@ -65,7 +66,7 @@ export default function ShopPage() {
   const purchased = params.get("purchased");
 
   return (
-    <div className="max-w-5xl mx-auto p-4 space-y-4">
+    <PreviewStage className="max-w-5xl mx-auto p-4 space-y-4">
       {purchased && (
         <div className="bg-emerald-500/15 border border-emerald-500/40 rounded-lg px-4 py-2 text-sm">
           Thanks! Your purchase is in{" "}
@@ -123,6 +124,6 @@ export default function ShopPage() {
           </Card>
         );
       })}
-    </div>
+    </PreviewStage>
   );
 }

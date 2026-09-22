@@ -13,6 +13,7 @@ export default defineConfig({
     proxy: {
       "/api": "http://localhost:8080",
       "/admin/api": "http://localhost:8080",
+      "/media": "http://localhost:8080", // uploaded models, for the previews
     },
   },
   build: { outDir: "dist" },

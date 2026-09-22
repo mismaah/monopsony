@@ -3,8 +3,7 @@ import { Text, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { Config, State } from "@monopsony/protocol";
-import { TILES, HALF, DEPTH, bandSpot, ownerSpot, buildingSpot, rotate } from "./layout";
-import type { BoardSkin } from "./skins";
+import { TILES, HALF, DEPTH, bandSpot, ownerSpot, buildingSpot, rotate, type BoardSkin } from "@monopsony/cosmetics";
 import { seatColors } from "@/lib/ui";
 
 interface Props {

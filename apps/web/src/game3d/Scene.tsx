@@ -8,9 +8,8 @@ import { useAuth } from "@/store/auth";
 import { Board } from "./Board";
 import { Tokens } from "./Tokens";
 import { Dice } from "./Dice";
-import { resolveBoard, resolveDice } from "./skins";
+import { resolveBoard, resolveDice, TILES } from "@monopsony/cosmetics";
 import { useCosmetics } from "@/store/cosmetics";
-import { TILES } from "./layout";
 
 /** Camera follows the active token when "follow" is on, otherwise free orbit. */
 function CameraRig({ follow, focusSpace }: { follow: boolean; focusSpace: number | null }) {

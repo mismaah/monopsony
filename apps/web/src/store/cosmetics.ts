@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { api } from "@/api/http";
-import type { Manifests } from "@/game3d/skins";
+import type { Manifests } from "@monopsony/cosmetics";
 
 /**
  * Manifests for every enabled cosmetic, keyed by item id. Loaded once per

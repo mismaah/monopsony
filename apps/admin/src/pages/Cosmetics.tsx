@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, getAccessToken, ApiError } from "@/lib/http";
 import { Btn, Field, Notice, Panel } from "@/lib/ui";
+import { CosmeticPreview, PreviewStage, type Manifest } from "@monopsony/cosmetics";
 
 interface Cosmetic {
   id: string;
@@ -46,16 +47,30 @@ export default function CosmeticsPage() {
   const [items, setItems] = useState<Cosmetic[]>([]);
   const [edit, setEdit] = useState<Cosmetic | null>(null);
   const [manifest, setManifest] = useState("");
+  // What the preview shows: the last manifest that parsed, a beat after typing
+  // stops so half-typed model URLs are not fetched.
+  const [live, setLive] = useState<Manifest | null>(null);
   const [check, setCheck] = useState<{ ok: boolean; error?: string } | null>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const load = () => api<{ items: Cosmetic[] }>("GET", "/admin/api/cosmetics").then((r) => setItems(r.items));
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        setLive(JSON.parse(manifest));
+      } catch {
+        /* keep the last good look */
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [manifest]);
 
   function open(c: Cosmetic) {
     setEdit(c);
     setManifest(JSON.stringify(c.manifest ?? {}, null, 2));
+    setLive((c.manifest ?? {}) as Manifest);
     setCheck(null);
   }
   function parsed(): Record<string, unknown> | null {
@@ -88,7 +103,7 @@ export default function CosmeticsPage() {
   }
 
   return (
-    <>
+    <PreviewStage>
       <Panel title="Cosmetics" actions={<Btn onClick={() => open({ ...empty })}>+ New item</Btn>}>
         <p className="text-sm text-zinc-400 mb-3">
           The manifest tells the client how to render an item: a <code>builtin</code> look, a <code>palette</code> (board/dice/cards), or a glTF <code>model</code> — bundled (<code>{"{\"model\":{\"builtin\":\"tophat\"}}"}</code>) or uploaded below. Materials named <code>keep_*</code> in a model
@@ -138,7 +153,7 @@ export default function CosmeticsPage() {
             <label className="flex items-center gap-2 text-sm mt-5">
               <input type="checkbox" checked={edit.enabled} onChange={(e) => setEdit({ ...edit, enabled: e.target.checked })} /> Enabled (visible in shop)
             </label>
-            <div className="md:col-span-3">
+            <div className="md:col-span-2">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-zinc-400 text-xs uppercase tracking-wide">Manifest (JSON)</span>
                 <span className="flex-1" />
@@ -159,6 +174,11 @@ export default function CosmeticsPage() {
               />
               {check && <div className="mt-1">{check.ok ? <Notice kind="ok" text="Manifest is valid." /> : <Notice kind="err" text={check.error ?? "invalid"} />}</div>}
             </div>
+            <div>
+              <div className="text-zinc-400 text-xs uppercase tracking-wide mb-1">Preview</div>
+              {live && <CosmeticPreview slot={edit.slot} itemId={edit.id || "new"} manifest={live} className="h-40 rounded bg-zinc-950" />}
+              <p className="text-xs text-zinc-500 mt-1">Follows the manifest as you type; invalid JSON keeps the last good look.</p>
+            </div>
             <div className="md:col-span-3 flex gap-2">
               <Btn tone="secondary" onClick={validate}>
                 Validate
@@ -173,6 +193,7 @@ export default function CosmeticsPage() {
         <table className="w-full text-sm">
           <thead className="text-zinc-400">
             <tr>
+              <th></th>
               <th>Id</th>
               <th>Slot</th>
               <th>Name</th>
@@ -186,6 +207,9 @@ export default function CosmeticsPage() {
           <tbody>
             {items.map((c) => (
               <tr key={c.id} className="border-t border-zinc-800">
+                <td className="py-1 pr-2">
+                  <CosmeticPreview slot={c.slot} itemId={c.id} manifest={(c.manifest ?? {}) as Manifest} className="w-24 h-14 rounded bg-zinc-950" />
+                </td>
                 <td className="font-mono text-xs">{c.id}</td>
                 <td>{c.slot}</td>
                 <td>{c.name}</td>
@@ -204,7 +228,7 @@ export default function CosmeticsPage() {
         </table>
       </Panel>
       <AssetsPanel onPick={(url) => edit && setManifest(JSON.stringify({ model: { url, scale: 1 } }, null, 2))} />
-    </>
+    </PreviewStage>
   );
 }
 

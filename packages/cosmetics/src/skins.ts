@@ -134,3 +134,20 @@ export function resolveDice(manifests: Manifests, id: string | undefined): DiceS
   const base = DICE[m?.builtin ?? id ?? ""] ?? DICE["dice.ivory"];
   return { ...base, ...(m?.palette ?? {}), id: id ?? base.id } as DiceSkin;
 }
+
+export interface CardsSkin {
+  id: string;
+  name: string;
+  back: string;
+  face: string;
+}
+
+export const CARDS: Record<string, CardsSkin> = {
+  "cards.classic": { id: "cards.classic", name: "Classic", back: "#1e3a8a", face: "#f8fafc" },
+};
+
+export function resolveCards(manifests: Manifests, id: string | undefined): CardsSkin {
+  const m = id ? manifests[id] : undefined;
+  const base = CARDS[m?.builtin ?? id ?? ""] ?? CARDS["cards.classic"];
+  return { ...base, ...(m?.palette ?? {}), id: id ?? base.id } as CardsSkin;
+}

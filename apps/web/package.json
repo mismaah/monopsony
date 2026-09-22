@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@monopsony/board-assets": "*",
+    "@monopsony/cosmetics": "*",
     "@monopsony/protocol": "*",
     "@react-three/drei": "^9.117.3",
     "@react-three/fiber": "^8.17.10",
