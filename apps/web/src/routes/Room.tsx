@@ -7,11 +7,13 @@ import { useGame } from "@/store/game";
 import { Button, Card, seatColors } from "@/lib/ui";
 import { useTablePreload } from "@/game3d/preload";
 import { Mascot } from "@/brand";
+import { InvitePanel } from "@/invite/InvitePanel";
 import GamePage from "./Game";
 
 /**
  * RoomPage subscribes to the game over the socket. Before the game starts it
- * shows the lobby (seats, bots, invite code); afterwards it renders the 3D game.
+ * shows the lobby (seats, bots, the invite to share); afterwards it renders
+ * the 3D game.
  */
 export default function RoomPage() {
   const { id = "" } = useParams();
@@ -59,15 +61,12 @@ export default function RoomPage() {
             <p className="text-sm text-slate-400">
               {lobby.visibility} · {lobby.seats.length}/{lobby.maxPlayers} seats · {lobby.turnSeconds}s per decision
             </p>
-            {lobby.inviteCode && (
-              <p className="mt-2 text-sm">
-                Invite code: <code className="bg-slate-800 px-2 py-0.5 rounded font-mono text-emerald-300">{lobby.inviteCode}</code>
-              </p>
-            )}
           </div>
           {lobby.status === "finished" && <span className="text-amber-300">Finished</span>}
         </div>
       </Card>
+
+      {lobby.status === "lobby" && <InvitePanel lobby={lobby} />}
 
       <Card title="Seats">
         <ul className="space-y-2">

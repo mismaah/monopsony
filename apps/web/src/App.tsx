@@ -4,10 +4,12 @@ import { useAuth } from "@/store/auth";
 import Home from "@/routes/Home";
 import LobbyPage from "@/routes/Lobby";
 import RoomPage from "@/routes/Room";
+import JoinPage from "@/routes/Join";
 import ShopPage from "@/routes/Shop";
 import CollectionPage from "@/routes/Collection";
 import AccountPage from "@/routes/Account";
 import { TopBar } from "@/hud/TopBar";
+import { afterSignInPath } from "@/invite/code";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, ready } = useAuth();
@@ -37,6 +39,7 @@ export default function App() {
       <div className="flex-1 min-h-0">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/join/:code" element={<JoinPage />} />
           <Route
             path="/lobby"
             element={
@@ -77,7 +80,7 @@ export default function App() {
               </RequireAuth>
             }
           />
-          <Route path="/oauth/done" element={<Navigate to="/lobby" replace />} />
+          <Route path="/oauth/done" element={<Navigate to={afterSignInPath()} replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

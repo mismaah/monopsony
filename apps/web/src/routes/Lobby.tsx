@@ -5,6 +5,7 @@ import { api, ApiError } from "@/api/http";
 import { useAuth } from "@/store/auth";
 import { Button, Card, Input } from "@/lib/ui";
 import { AdSlot } from "@/hud/AdSlot";
+import { normalizeInviteCode } from "@/invite/code";
 
 interface MyGame {
   id: string;
@@ -187,9 +188,13 @@ export default function LobbyPage() {
             </Button>
           </div>
         </Card>
-        <Card title="Join with a code">
+        <Card title="Join with a code or link">
           <div className="flex gap-2">
-            <Input placeholder="ABCD-1234" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+            <Input
+              placeholder="ABCD-2345 or invite link"
+              value={code}
+              onChange={(e) => setCode(normalizeInviteCode(e.target.value))}
+            />
             <Button variant="secondary" onClick={joinCode} disabled={code.length < 4}>
               Join
             </Button>

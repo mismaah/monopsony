@@ -47,7 +47,9 @@ export default defineConfig({
         MONOPSONY_CORS_ORIGINS: `http://localhost:${WEB_PORT}`,
         MONOPSONY_PUBLIC_URL: `http://localhost:${WEB_PORT}`,
         MONOPSONY_JWT_SECRET: "e2e-secret",
-        MONOPSONY_ADMIN_EMAILS: "admin@e2e.test",
+        // Admins resolve to premium capabilities, which is how the invite
+        // spec gets hold of a private table.
+        MONOPSONY_ADMIN_EMAILS: "admin@e2e.test,host@e2e.test,friend@e2e.test",
         MONOPSONY_BOT_DELAY_MS: "60",
         // Clients still report their assets loaded; this only caps how long
         // a start waits for one that cannot (no CDN in CI, say).

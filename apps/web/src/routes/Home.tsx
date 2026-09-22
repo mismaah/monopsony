@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/store/auth";
 import { Button, Card, Input } from "@/lib/ui";
 import { Logo, Mascot, TAGLINE } from "@/brand";
+import { afterSignInPath } from "@/invite/code";
 
 type Mode = "guest" | "login" | "register";
 
@@ -22,7 +23,11 @@ export default function Home() {
     api<{ providers: string[] }>("GET", "/api/auth/providers").then((r) => setProviders(r.providers ?? [])).catch(() => {});
   }, []);
 
-  if (ready && user) return <Navigate to={(loc.state as { from?: string } | null)?.from ?? "/lobby"} replace />;
+  // Somewhere to go back to: the page that bounced us here, or an invite link
+  // parked before an OAuth round trip.
+  const destination = afterSignInPath((loc.state as { from?: string } | null)?.from);
+
+  if (ready && user) return <Navigate to={destination} replace />;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -32,7 +37,7 @@ export default function Home() {
       if (mode === "guest") await guest(name);
       else if (mode === "login") await login(email, password);
       else await register(email, password, name);
-      nav("/lobby");
+      nav(destination);
     } catch (err) {
       setError((err as Error).message);
     } finally {
