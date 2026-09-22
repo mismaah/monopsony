@@ -40,6 +40,7 @@ func (f *fakeRoom) Leave(userID string) error             { f.note("leave:" + us
 func (f *fakeRoom) AddBot(byUserID, profile string) error { f.note("bot:" + profile); return nil }
 func (f *fakeRoom) Kick(byUserID, playerID string) error  { f.note("kick:" + playerID); return nil }
 func (f *fakeRoom) SetReady(userID string, ready bool)    { f.note("ready") }
+func (f *fakeRoom) AssetsReady(userID string)             { f.note("assets:" + userID) }
 func (f *fakeRoom) StartGame(byUserID string) error {
 	return &room.Error{Code: "not_enough_players", Message: "need 2"}
 }
@@ -70,6 +71,17 @@ func (f *fakeRoom) broadcast(env protocol.Envelope) {
 		s.Send(env)
 	}
 }
+func (f *fakeRoom) noted(s string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, l := range f.log {
+		if l == s {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *fakeRoom) subCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -159,6 +171,10 @@ func TestRPCAndFrames(t *testing.T) {
 	if err := p.Command("u1", game.RollDice{Base: game.Base{PlayerID: "u1"}}); err != nil {
 		t.Fatal(err)
 	}
+	// Fire-and-forget calls reach the owner too, so a player on this node
+	// can report its assets loaded for a game hosted on another.
+	p.AssetsReady("u1")
+	waitFor(t, "assetsReady rpc", func() bool { return fr.noted("assets:u1") })
 	sub := &recSub{}
 	p.Subscribe(sub, 0)
 	waitFor(t, "lobby frame", func() bool { return sub.find(protocol.SLobby) != nil })

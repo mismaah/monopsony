@@ -105,6 +105,7 @@ The logo is an emerald octagon coin with an "M" (eight sides: eight seats, eight
 | `GOOGLE_CLIENT_ID/SECRET`, `DISCORD_CLIENT_ID/SECRET` | enable OAuth sign-in |
 | `MONOPSONY_STATIC_DIR` | serve built SPAs (player at `/`, admin at `/admin/`) |
 | `MONOPSONY_BOT_DELAY_MS` | pause before bots act (animation pacing) |
+| `MONOPSONY_ASSET_GRACE_MS` | how long a start waits for players to preload the table (default 10000, `0` deals at once) |
 | `MONOPSONY_LOG_LEVEL`, `MONOPSONY_LOG_FORMAT` | `debug\|info\|warn\|error`, `text\|json` |
 | `MONOPSONY_METRICS_ADDR` | Prometheus listener (default `:9100`, `off` to disable) |
 | `MONOPSONY_RATE_AUTH/API/WS/WS_FRAMES/WS_CHAT` | budgets as `per-minute/burst`; `0` disables one |

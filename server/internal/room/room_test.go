@@ -65,6 +65,139 @@ func waitFor(t *testing.T, cond func() bool) {
 	t.Fatal("condition not met in time")
 }
 
+// The deal waits for every connected human's client to report its assets
+// loaded, then starts as soon as the last one is in.
+func TestStartWaitsForAssets(t *testing.T) {
+	r, err := New(newRecord(), store.NewMem(), Options{AssetGrace: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	for _, u := range []*store.User{{ID: "u1", Name: "Alice"}, {ID: "u2", Name: "Bob"}} {
+		if err := r.Join(u); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s1, s2 := &fakeSub{id: "u1"}, &fakeSub{id: "u2"}
+	r.Subscribe(s1, 0)
+	r.Subscribe(s2, 0)
+
+	// Alice's client preloaded while she sat in the lobby; Bob's has not.
+	r.AssetsReady("u1")
+	waitFor(t, func() bool { return seatInfo(t, s1.last(protocol.SLobby), "u1").Loaded })
+	if err := r.StartGame("u1"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return lobbyOf(t, s2.last(protocol.SLobby)).Starting })
+	if r.Record().Status != store.StatusLobby {
+		t.Fatal("dealt before every client reported in")
+	}
+	// No new seats while the table is being held.
+	if err := r.AddBot("u1", "balanced"); err == nil {
+		t.Fatal("bots must not join a starting game")
+	}
+	if err := r.StartGame("u1"); err == nil {
+		t.Fatal("a second start must be refused")
+	}
+
+	r.AssetsReady("u2")
+	waitFor(t, func() bool { return s1.count(protocol.SSnapshot) >= 1 && s2.count(protocol.SSnapshot) >= 1 })
+	if r.Record().Status != store.StatusInProgress {
+		t.Fatal("expected the game to be in progress")
+	}
+}
+
+// A client that never reports (stuck download, wedged tab) delays the table
+// by the grace period, no longer, and a disconnected one not at all.
+func TestStartGiveUpsOnSlowClients(t *testing.T) {
+	r, err := New(newRecord(), store.NewMem(), Options{AssetGrace: 80 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	for _, u := range []*store.User{{ID: "u1", Name: "Alice"}, {ID: "u2", Name: "Bob"}} {
+		if err := r.Join(u); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s1, s2 := &fakeSub{id: "u1"}, &fakeSub{id: "u2"}
+	r.Subscribe(s1, 0)
+	r.Subscribe(s2, 0)
+	if err := r.StartGame("u1"); err != nil {
+		t.Fatal(err)
+	}
+	if r.Record().Status != store.StatusLobby {
+		t.Fatal("dealt without waiting at all")
+	}
+	waitFor(t, func() bool { return s1.count(protocol.SSnapshot) >= 1 })
+
+	// Bob drops out of a second table mid-wait: nobody is watching his
+	// screen, so the table deals at once instead of serving out the grace.
+	r2, err := New(newRecord(), store.NewMem(), Options{AssetGrace: 30 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r2.Stop()
+	for _, u := range []*store.User{{ID: "u1", Name: "Alice"}, {ID: "u2", Name: "Bob"}} {
+		if err := r2.Join(u); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a, b := &fakeSub{id: "u1"}, &fakeSub{id: "u2"}
+	r2.Subscribe(a, 0)
+	r2.Subscribe(b, 0)
+	r2.AssetsReady("u1")
+	if err := r2.StartGame("u1"); err != nil {
+		t.Fatal(err)
+	}
+	r2.Unsubscribe(b)
+	waitFor(t, func() bool { return a.count(protocol.SSnapshot) >= 1 })
+}
+
+// A zero grace (tests, headless play) deals straight away.
+func TestStartWithoutGraceIsImmediate(t *testing.T) {
+	r, err := New(newRecord(), store.NewMem(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Stop()
+	for _, u := range []*store.User{{ID: "u1", Name: "Alice"}, {ID: "u2", Name: "Bob"}} {
+		if err := r.Join(u); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s1 := &fakeSub{id: "u1"}
+	r.Subscribe(s1, 0)
+	if err := r.StartGame("u1"); err != nil {
+		t.Fatal(err)
+	}
+	if r.Record().Status != store.StatusInProgress {
+		t.Fatal("expected an immediate deal")
+	}
+}
+
+func lobbyOf(t *testing.T, env *protocol.Envelope) protocol.Lobby {
+	t.Helper()
+	var l protocol.Lobby
+	if env == nil {
+		return l
+	}
+	if err := json.Unmarshal(env.P, &l); err != nil {
+		t.Fatal(err)
+	}
+	return l
+}
+
+func seatInfo(t *testing.T, env *protocol.Envelope, playerID string) protocol.SeatInfo {
+	t.Helper()
+	for _, s := range lobbyOf(t, env).Seats {
+		if s.PlayerID == playerID {
+			return s
+		}
+	}
+	return protocol.SeatInfo{}
+}
+
 func TestLobbyToGameAndCommands(t *testing.T) {
 	st := store.NewMem()
 	r, err := New(newRecord(), st, Options{})

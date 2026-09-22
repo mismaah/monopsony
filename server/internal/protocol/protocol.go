@@ -24,8 +24,11 @@ const (
 	CLeaveGame = "LeaveGame" // unsubscribe
 	CCommand   = "Command"   // a game.Command
 	CReady     = "Ready"     // lobby: toggle ready
-	CChat      = "Chat"
-	CPing      = "Ping"
+	// CAssetsReady reports that this client has finished preloading the
+	// table's 3D assets, so the room need not wait for it to start.
+	CAssetsReady = "AssetsReady"
+	CChat        = "Chat"
+	CPing        = "Ping"
 )
 
 type JoinGame struct {
@@ -46,6 +49,10 @@ type Command struct {
 type Chat struct {
 	GameID string `json:"gameId"`
 	Text   string `json:"text"`
+}
+
+type AssetsReady struct {
+	GameID string `json:"gameId"`
 }
 
 // ---- server -> client ----------------------------------------------------------
@@ -71,13 +78,16 @@ type Welcome struct {
 
 // SeatInfo is what everyone can see about a seat.
 type SeatInfo struct {
-	PlayerID  string            `json:"playerId"`
-	Name      string            `json:"name"`
-	IsBot     bool              `json:"isBot"`
-	Connected bool              `json:"connected"`
-	Ready     bool              `json:"ready"`
-	Host      bool              `json:"host"`
-	Loadout   map[string]string `json:"loadout,omitempty"` // cosmetic slot -> item id
+	PlayerID  string `json:"playerId"`
+	Name      string `json:"name"`
+	IsBot     bool   `json:"isBot"`
+	Connected bool   `json:"connected"`
+	Ready     bool   `json:"ready"`
+	// Loaded: this seat's client has the table's assets preloaded (bots are
+	// always "loaded"; they have nothing to render).
+	Loaded  bool              `json:"loaded"`
+	Host    bool              `json:"host"`
+	Loadout map[string]string `json:"loadout,omitempty"` // cosmetic slot -> item id
 }
 
 // Lobby is the pre-game room view.
@@ -92,6 +102,11 @@ type Lobby struct {
 	Rules       game.Rules `json:"rules"`
 	Seats       []SeatInfo `json:"seats"`
 	TurnSeconds int        `json:"turnSeconds"`
+	// Starting is set once the host has pressed start and the room is
+	// holding the deal until every connected human's client has its assets.
+	Starting bool `json:"starting,omitempty"`
+	// StartDeadline is unix ms when the room deals regardless.
+	StartDeadline int64 `json:"startDeadline,omitempty"`
 	// Node hosts the game (cluster deployments; empty on a single server).
 	Node string `json:"node,omitempty"`
 }

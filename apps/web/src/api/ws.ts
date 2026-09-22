@@ -188,6 +188,11 @@ export class GameSocket {
     this.raw({ t: "LeaveGame", p: { gameId } });
   }
 
+  /** Tell the room this client has the table's assets; dropped if the socket is down, so callers retry. */
+  assetsReady(gameId: string) {
+    this.raw({ t: "AssetsReady", p: { gameId } });
+  }
+
   chat(gameId: string, text: string) {
     this.raw({ t: "Chat", p: { gameId, text } });
   }

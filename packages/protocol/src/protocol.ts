@@ -36,6 +36,11 @@ export const CCommand = "Command"; // a game.Command
  */
 export const CReady = "Ready"; // lobby: toggle ready
 /**
+ * CAssetsReady reports that this client has finished preloading the
+ * table's 3D assets, so the room need not wait for it to start.
+ */
+export const CAssetsReady = "AssetsReady";
+/**
  * Client message types.
  */
 export const CChat = "Chat";
@@ -58,6 +63,9 @@ export interface Command {
 export interface Chat {
   gameId: string;
   text: string;
+}
+export interface AssetsReady {
+  gameId: string;
 }
 /**
  * Server message types.
@@ -112,6 +120,11 @@ export interface SeatInfo {
   isBot: boolean;
   connected: boolean;
   ready: boolean;
+  /**
+   * Loaded: this seat's client has the table's assets preloaded (bots are
+   * always "loaded"; they have nothing to render).
+   */
+  loaded: boolean;
   host: boolean;
   loadout?: { [key: string]: string}; // cosmetic slot -> item id
 }
@@ -129,6 +142,15 @@ export interface Lobby {
   rules: Rules;
   seats: SeatInfo[];
   turnSeconds: number /* int */;
+  /**
+   * Starting is set once the host has pressed start and the room is
+   * holding the deal until every connected human's client has its assets.
+   */
+  starting?: boolean;
+  /**
+   * StartDeadline is unix ms when the room deals regardless.
+   */
+  startDeadline?: number /* int64 */;
   /**
    * Node hosts the game (cluster deployments; empty on a single server).
    */

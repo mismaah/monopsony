@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import type { Lobby } from "@monopsony/protocol";
 import { api } from "@/api/http";
 import { useAuth } from "@/store/auth";
 import { useGame } from "@/store/game";
 import { Button, Card, seatColors } from "@/lib/ui";
+import { useTablePreload } from "@/game3d/preload";
 import { Mascot } from "@/brand";
 import GamePage from "./Game";
 
@@ -15,13 +17,18 @@ export default function RoomPage() {
   const { id = "" } = useParams();
   const nav = useNavigate();
   const user = useAuth((s) => s.user);
-  const { lobby, state, open, close } = useGame();
+  const { lobby, seats, state, open, close } = useGame();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     open(id);
     return () => close();
   }, [id, open, close]);
+
+  // Warm the 3D caches while people are still taking their seats, and tell
+  // the room when we are ready for it: the host's start waits on us.
+  const mySeat = seats.find((s) => s.playerId === user?.id);
+  const preload = useTablePreload(id, seats, mySeat);
 
   if (state) return <GamePage />;
   if (!lobby) {
@@ -72,6 +79,7 @@ export default function RoomPage() {
                 {s.host && <span className="ml-2 text-xs text-amber-300">host</span>}
                 {s.isBot && <span className="ml-2 text-xs text-slate-400">bot</span>}
                 {!s.isBot && !s.connected && <span className="ml-2 text-xs text-slate-500">offline</span>}
+                {!s.isBot && s.connected && !s.loaded && <span className="ml-2 text-xs text-slate-500">loading the table…</span>}
               </span>
               {isHost && s.playerId !== user?.id && (
                 <Button variant="ghost" onClick={() => call(() => api("DELETE", `/api/games/${id}/seats/${s.playerId}`))}>
@@ -106,8 +114,8 @@ export default function RoomPage() {
                 + {p} bot
               </Button>
             ))}
-            <Button disabled={lobby.seats.length < 2} onClick={() => call(() => api("POST", `/api/games/${id}/start`))}>
-              Start game
+            <Button disabled={lobby.seats.length < 2 || lobby.starting} onClick={() => call(() => api("POST", `/api/games/${id}/start`))}>
+              {lobby.starting ? "Starting…" : "Start game"}
             </Button>
           </>
         )}
@@ -124,14 +132,61 @@ export default function RoomPage() {
             Leave
           </Button>
         )}
-        {!isHost && me && (
+        {!isHost && me && !lobby.starting && (
           <span className="flex items-center gap-2 text-sm text-slate-400">
             <Mascot size={28} pose="plain" />
             Waiting for the host to start…
           </span>
         )}
       </div>
+      {lobby.starting && <StartingCard lobby={lobby} />}
+      {!lobby.starting && mySeat && !preload.ready && preload.total > 0 && (
+        <p className="text-xs text-slate-500">
+          Loading the table… {preload.done}/{preload.total}
+        </p>
+      )}
       {error && <p className="text-rose-400 text-sm">{error}</p>}
     </div>
   );
+}
+
+/**
+ * Shown between the host's start and the first hand: the table is held while
+ * the named players' clients finish loading, and dealt anyway when the
+ * countdown runs out.
+ */
+function StartingCard({ lobby }: { lobby: Lobby }) {
+  const waiting = lobby.seats.filter((s) => !s.isBot && s.connected && !s.loaded);
+  const left = useCountdown(lobby.startDeadline ?? 0);
+  return (
+    <Card className="border-emerald-800/60">
+      <div className="flex items-center gap-3">
+        <Mascot size={36} pose="plain" className="animate-pulse" />
+        <div className="flex-1">
+          <p className="font-medium">Dealing you in…</p>
+          <p className="text-sm text-slate-400">
+            {waiting.length === 0
+              ? "Everyone is ready."
+              : `Waiting for ${waiting.map((s) => s.name).join(", ")} to load the table${left > 0 ? ` — starting in ${left}s regardless` : ""}.`}
+          </p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Whole seconds left until a unix-ms deadline, floored at zero. */
+function useCountdown(deadlineMs: number): number {
+  const [left, setLeft] = useState(() => remaining(deadlineMs));
+  useEffect(() => {
+    setLeft(remaining(deadlineMs));
+    if (!deadlineMs) return;
+    const t = setInterval(() => setLeft(remaining(deadlineMs)), 500);
+    return () => clearInterval(t);
+  }, [deadlineMs]);
+  return left;
+}
+
+function remaining(deadlineMs: number) {
+  return deadlineMs ? Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000)) : 0;
 }

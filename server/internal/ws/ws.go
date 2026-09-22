@@ -230,6 +230,14 @@ func (c *conn) handle(env protocol.Envelope) {
 		if r, ok := c.lobby.Get(p.GameID); ok {
 			r.SetReady(c.userID, p.Ready)
 		}
+	case protocol.CAssetsReady:
+		var p protocol.AssetsReady
+		if err := json.Unmarshal(env.P, &p); err != nil {
+			return
+		}
+		if r, ok := c.lobby.Get(p.GameID); ok {
+			r.AssetsReady(c.userID)
+		}
 	case protocol.CChat:
 		var p protocol.Chat
 		if err := json.Unmarshal(env.P, &p); err != nil {

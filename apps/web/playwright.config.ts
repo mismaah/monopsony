@@ -49,6 +49,9 @@ export default defineConfig({
         MONOPSONY_JWT_SECRET: "e2e-secret",
         MONOPSONY_ADMIN_EMAILS: "admin@e2e.test",
         MONOPSONY_BOT_DELAY_MS: "60",
+        // Clients still report their assets loaded; this only caps how long
+        // a start waits for one that cannot (no CDN in CI, say).
+        MONOPSONY_ASSET_GRACE_MS: "3000",
         MONOPSONY_ASSET_DIR: assetDir,
         MONOPSONY_ADS_PROVIDER: "house",
         MONOPSONY_RATE_AUTH: "600/100",

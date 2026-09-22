@@ -174,6 +174,7 @@ func main() {
 		AdminEmails: strings.Split(os.Getenv("MONOPSONY_ADMIN_EMAILS"), ","),
 		RoomOptions: room.Options{
 			BotDelay:    time.Duration(envInt("MONOPSONY_BOT_DELAY_MS", 900)) * time.Millisecond,
+			AssetGrace:  time.Duration(envInt("MONOPSONY_ASSET_GRACE_MS", 10000)) * time.Millisecond,
 			MaxTimeouts: 3,
 		},
 		Logger:     log,

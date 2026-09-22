@@ -449,6 +449,13 @@ func (n *Node) dispatch(m message) (any, error) {
 		}
 		h.SetReady(a.UserID, a.Ready)
 		return nil, nil
+	case "assetsReady":
+		a, err := decodeArgs[argsUser](m.Args)
+		if err != nil {
+			return nil, err
+		}
+		h.AssetsReady(a.UserID)
+		return nil, nil
 	case "start":
 		a, err := decodeArgs[argsUser](m.Args)
 		if err != nil {
@@ -626,6 +633,9 @@ func (p *RemoteRoom) Kick(byUserID, playerID string) error {
 }
 func (p *RemoteRoom) SetReady(userID string, ready bool) {
 	_ = p.call("ready", argsReady{UserID: userID, Ready: ready}, nil)
+}
+func (p *RemoteRoom) AssetsReady(userID string) {
+	_ = p.call("assetsReady", argsUser{UserID: userID}, nil)
 }
 func (p *RemoteRoom) StartGame(byUserID string) error {
 	return p.call("start", argsUser{UserID: byUserID}, nil)

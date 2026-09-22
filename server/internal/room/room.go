@@ -32,6 +32,7 @@ type Handle interface {
 	AddBot(byUserID, profile string) error
 	Kick(byUserID, playerID string) error
 	SetReady(userID string, ready bool)
+	AssetsReady(userID string)
 	StartGame(byUserID string) error
 	Subscribe(sub Subscriber, lastSeq int)
 	Unsubscribe(sub Subscriber)
@@ -54,7 +55,10 @@ type Options struct {
 	// turn clock is paused meanwhile. Zero means the same as TurnTimeout.
 	TradeTimeout time.Duration
 	MaxTimeouts  int // consecutive timeouts before a bot takes the seat
-	Logger      *slog.Logger
+	// AssetGrace caps how long StartGame holds the deal while players'
+	// clients preload the table's 3D assets. Zero deals immediately.
+	AssetGrace time.Duration
+	Logger     *slog.Logger
 	// Loadout resolves a user's equipped cosmetics; nil = none.
 	Loadout func(userID string) map[string]string
 	// Metrics receives command/event/bot counters; nil = the shared default.
@@ -79,11 +83,18 @@ type Room struct {
 	subs      map[Subscriber]struct{}
 	connected map[string]int // playerID -> live connections
 	ready     map[string]bool
+	loaded    map[string]bool // playerID -> client has the table's assets
 	timeouts  map[string]int
 	deadline  time.Time
 	timer     *time.Timer
 	botTimer  *time.Timer
-	seqGen    int // bot seat counter
+	// The deal waits for slow loaders: starting is set between StartGame and
+	// the first hand, startAt is when the room deals regardless. Neither is
+	// persisted - a room restored after a restart is a plain lobby again.
+	starting   bool
+	startAt    time.Time
+	startTimer *time.Timer
+	seqGen     int // bot seat counter
 
 	// A pending trade pauses the turn clock: pausedTrade is the offer whose
 	// deadline is armed, pausedTurn/pausedLeft what to restore afterwards.
@@ -109,7 +120,7 @@ func New(rec *store.GameRecord, st store.Store, opts Options) (*Room, error) {
 		log:   opts.Logger.With("room", rec.ID),
 		inbox: make(chan func(), 256), stop: make(chan struct{}),
 		bots: map[string]*bot.Bot{}, subs: map[Subscriber]struct{}{},
-		connected: map[string]int{}, ready: map[string]bool{}, timeouts: map[string]int{},
+		connected: map[string]int{}, ready: map[string]bool{}, loaded: map[string]bool{}, timeouts: map[string]int{},
 		rng: game.NewSeededRNG(rand.Uint64()),
 	}
 	for _, s := range rec.Seats {
@@ -201,6 +212,9 @@ func (r *Room) Stop() {
 		if r.botTimer != nil {
 			r.botTimer.Stop()
 		}
+		if r.startTimer != nil {
+			r.startTimer.Stop()
+		}
 	})
 }
 
@@ -227,6 +241,9 @@ func (r *Room) Join(u *store.User) error {
 	_, err := call(r, func() (struct{}, error) {
 		if r.rec.Status != store.StatusLobby {
 			return struct{}{}, errf("game_started", "the game has already started")
+		}
+		if r.starting {
+			return struct{}{}, errf("game_starting", "the game is starting")
 		}
 		if r.seatOf(u.ID) != nil {
 			return struct{}{}, nil
@@ -260,7 +277,9 @@ func (r *Room) Leave(userID string) error {
 				}
 			}
 			r.persist()
-			r.broadcastLobby()
+			if !r.dealIfLoaded() {
+				r.broadcastLobby()
+			}
 		}
 		return struct{}{}, nil
 	})
@@ -275,6 +294,9 @@ func (r *Room) AddBot(byUserID, prof string) error {
 		}
 		if r.rec.Status != store.StatusLobby {
 			return struct{}{}, errf("game_started", "the game has already started")
+		}
+		if r.starting {
+			return struct{}{}, errf("game_starting", "the game is starting")
 		}
 		if len(r.rec.Seats) >= r.rec.MaxPlayers {
 			return struct{}{}, errf("room_full", "the room is full")
@@ -323,7 +345,9 @@ func (r *Room) Kick(byUserID, playerID string) error {
 		if r.rec.Status == store.StatusLobby {
 			r.removeSeat(playerID)
 			r.persist()
-			r.broadcastLobby()
+			if !r.dealIfLoaded() {
+				r.broadcastLobby()
+			}
 			return struct{}{}, nil
 		}
 		if seat.IsBot {
@@ -366,11 +390,34 @@ func (r *Room) SetReady(userID string, ready bool) {
 	})
 }
 
-// StartGame begins play (host only).
+// AssetsReady records that a player's client has finished preloading the
+// table. Clients preload as soon as they sit down, so the host's start
+// usually has nothing left to wait for; a report that arrives during the
+// wait deals the game as soon as it is the last one outstanding.
+func (r *Room) AssetsReady(userID string) {
+	r.do(func() {
+		seat := r.seatOf(userID)
+		if seat == nil || r.rec.Status != store.StatusLobby || r.loaded[seat.PlayerID] {
+			return
+		}
+		r.loaded[seat.PlayerID] = true
+		if !r.dealIfLoaded() {
+			r.broadcastLobby()
+		}
+	})
+}
+
+// StartGame begins play (host only). Dealing into a scene half the table
+// cannot see yet is worse than a short pause, so the room first waits for
+// every connected human's client to report its assets loaded - but only for
+// Options.AssetGrace, after which it deals without the stragglers.
 func (r *Room) StartGame(byUserID string) error {
 	_, err := call(r, func() (struct{}, error) {
 		if err := r.requireHost(byUserID); err != nil {
 			return struct{}{}, err
+		}
+		if r.starting {
+			return struct{}{}, errf("game_starting", "the game is already starting")
 		}
 		if r.rec.Status != store.StatusLobby {
 			return struct{}{}, errf("game_started", "the game has already started")
@@ -378,27 +425,100 @@ func (r *Room) StartGame(byUserID string) error {
 		if len(r.rec.Seats) < game.MinPlayers {
 			return struct{}{}, errf("not_enough_players", "need at least %d players", game.MinPlayers)
 		}
-		seats := make([]game.Seat, 0, len(r.rec.Seats))
-		for _, s := range r.rec.Seats {
-			seats = append(seats, game.Seat{ID: s.PlayerID, Name: s.Name, IsBot: s.IsBot})
+		if r.opts.AssetGrace <= 0 || len(r.stillLoading()) == 0 {
+			return struct{}{}, r.deal()
 		}
-		st, evs, err := game.NewGame(r.cfg, seats, r.rng)
-		if err != nil {
-			return struct{}{}, err
-		}
-		now := time.Now()
-		r.state = st
-		r.rec.Status = store.StatusInProgress
-		r.rec.StartedAt = &now
-		r.rec.Seq = 0
-		r.afterChange(evs)
+		grace := r.opts.AssetGrace
+		r.starting = true
+		r.startAt = time.Now().Add(grace)
+		r.startTimer = time.AfterFunc(grace, func() { r.do(r.startGraceExpired) })
+		r.log.Info("holding the deal for loading clients", "players", r.stillLoading(), "grace", grace)
 		r.broadcastLobby()
-		for sub := range r.subs {
-			r.sendSnapshot(sub)
-		}
 		return struct{}{}, nil
 	})
 	return err
+}
+
+// stillLoading lists the seats the room would wait for: connected humans
+// whose client has not reported in. Bots, empty seats and disconnected
+// players are never waited on - nobody is watching those screens.
+func (r *Room) stillLoading() []string {
+	var out []string
+	for _, s := range r.rec.Seats {
+		if s.IsBot || s.UserID == "" || r.connected[s.PlayerID] == 0 || r.loaded[s.PlayerID] {
+			continue
+		}
+		out = append(out, s.PlayerID)
+	}
+	return out
+}
+
+// dealIfLoaded deals once nobody is left to wait for, reporting whether it
+// did. Every change to who is seated, connected or loaded runs through it.
+func (r *Room) dealIfLoaded() bool {
+	if !r.starting || len(r.stillLoading()) > 0 {
+		return false
+	}
+	if err := r.deal(); err != nil {
+		r.log.Error("start game", "err", err)
+		return false
+	}
+	return true
+}
+
+// startGraceExpired deals without the clients that never reported: their
+// scene fills in as the assets arrive, and one stuck client cannot hold the
+// table hostage.
+func (r *Room) startGraceExpired() {
+	if !r.starting {
+		return
+	}
+	if late := r.stillLoading(); len(late) > 0 {
+		r.log.Info("dealing without fully loaded clients", "players", late)
+	}
+	if err := r.deal(); err != nil {
+		r.log.Error("start game", "err", err)
+		r.broadcastLobby()
+	}
+}
+
+// stopWaiting leaves the waiting-for-clients phase.
+func (r *Room) stopWaiting() {
+	r.starting = false
+	r.startAt = time.Time{}
+	if r.startTimer != nil {
+		r.startTimer.Stop()
+		r.startTimer = nil
+	}
+}
+
+// deal creates the game and pushes the first snapshot to every subscriber.
+func (r *Room) deal() error {
+	r.stopWaiting()
+	// Belt and braces: whatever happened while we waited (an admin ending the
+	// lobby, say), only a lobby is ever dealt.
+	if r.rec.Status != store.StatusLobby {
+		return errf("game_started", "the game has already started")
+	}
+	seats := make([]game.Seat, 0, len(r.rec.Seats))
+	for _, s := range r.rec.Seats {
+		seats = append(seats, game.Seat{ID: s.PlayerID, Name: s.Name, IsBot: s.IsBot})
+	}
+	st, evs, err := game.NewGame(r.cfg, seats, r.rng)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	r.state = st
+	r.rec.Status = store.StatusInProgress
+	r.rec.StartedAt = &now
+	r.rec.Seq = 0
+	r.afterChange(evs)
+	r.broadcastLobby()
+	for sub := range r.subs {
+		r.sendSnapshot(sub)
+	}
+	return nil
 }
 
 // Subscribe attaches a connection and sends it the current view.
@@ -443,6 +563,9 @@ func (r *Room) Unsubscribe(sub Subscriber) {
 				delete(r.connected, seat.PlayerID)
 			}
 		}
+		if r.dealIfLoaded() {
+			return
+		}
 		r.broadcastLobby()
 	})
 }
@@ -481,6 +604,7 @@ func (r *Room) ForceEnd() error {
 	_, err := call(r, func() (struct{}, error) {
 		if r.state == nil {
 			now := time.Now()
+			r.stopWaiting() // a lobby closed mid-wait is never dealt
 			r.rec.Status = store.StatusFinished
 			r.rec.FinishedAt = &now
 			r.persist()
@@ -560,6 +684,7 @@ func (r *Room) removeSeat(playerID string) {
 			r.rec.Seats = append(r.rec.Seats[:i], r.rec.Seats[i+1:]...)
 			delete(r.bots, playerID)
 			delete(r.ready, playerID)
+			delete(r.loaded, playerID)
 			return
 		}
 	}
@@ -571,7 +696,8 @@ func (r *Room) seats() []protocol.SeatInfo {
 		out = append(out, protocol.SeatInfo{
 			PlayerID: s.PlayerID, Name: s.Name, IsBot: s.IsBot,
 			Connected: s.IsBot || r.connected[s.PlayerID] > 0,
-			Ready:     r.ready[s.PlayerID], Host: s.UserID != "" && s.UserID == r.rec.HostID,
+			Ready:     r.ready[s.PlayerID], Loaded: s.IsBot || r.loaded[s.PlayerID],
+			Host:    s.UserID != "" && s.UserID == r.rec.HostID,
 			Loadout: s.Loadout,
 		})
 	}
@@ -579,11 +705,15 @@ func (r *Room) seats() []protocol.SeatInfo {
 }
 
 func (r *Room) lobbyView() protocol.Lobby {
-	return protocol.Lobby{
+	v := protocol.Lobby{
 		GameID: r.id, Status: r.rec.Status, Name: r.rec.Name, Visibility: r.rec.Visibility,
 		InviteCode: r.rec.InviteCode, MaxPlayers: r.rec.MaxPlayers, ConfigID: r.rec.ConfigID,
 		Rules: r.cfg.Rules, Seats: r.seats(), TurnSeconds: r.rec.TurnSeconds,
 	}
+	if r.starting {
+		v.Starting, v.StartDeadline = true, r.startAt.UnixMilli()
+	}
+	return v
 }
 
 // LobbyFromRecord builds the lobby view of a game hosted elsewhere from its
