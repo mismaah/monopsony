@@ -115,7 +115,7 @@ The logo is an emerald octagon coin with an "M" (eight sides: eight seats, eight
 
 ## Production
 
-The stack in `deploy/` is built for a box you own (a home server works) that already runs a **Postgres container** and a **Cloudflare Tunnel**: the compose adds only the app image and Redis, and joins the Postgres container's network. No port forwarding, Cloudflare terminates TLS, and the origin is reachable only through the tunnel.
+The stack in `deploy/` is built for a box you own (a home server works) that already runs **Postgres** and a **Cloudflare Tunnel**: the compose adds only the app image and Redis. No port forwarding, Cloudflare terminates TLS, and the origin is reachable only through the tunnel.
 
 ```bash
 cp deploy/.env.example deploy/.env      # then fill it in (secrets, public URL, admin email, Postgres creds)
@@ -133,16 +133,23 @@ One-time setup on the box:
      -c "CREATE DATABASE monopsony OWNER monopsony;"
    ```
 
-   Owning the database is all the app needs — no extensions, no extra grants; it applies its own migrations on boot. Put the password in `POSTGRES_PASSWORD`, the container's name in `POSTGRES_HOST`, and its network in `POSTGRES_NETWORK`:
+   Owning the database is all the app needs — no extensions, no extra grants; it applies its own migrations on boot. Put that password in `POSTGRES_PASSWORD`.
 
-   ```bash
-   docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' pg
-   ```
+2. **Talking to Postgres** — by default the app connects to `host.docker.internal:5432`, the host gateway, which reaches whatever the Postgres container publishes on the host (`docker ps` shows `0.0.0.0:5432->5432/tcp`). That works no matter which network Postgres is on. Two alternatives:
 
-2. **Tunnel** — in the tunnel already running on the box, add a public hostname (e.g. `beta.example.com`) → service `http://localhost:8080`. The compose binds the app to the host's loopback only, so nothing on the LAN reaches it without going through Cloudflare. WebSockets pass through by default. (If that `cloudflared` is a container rather than a host service, remove `ports` from `app`, attach it to the tunnel container's network too and use `http://app:8080`.)
-3. **Country restriction** — your zone → Security → WAF → Custom rules: expression `(ip.src.country ne "MV")`, action *Block*. It is IP geolocation, so VPNs get around it in both directions. If you switch billing to Stripe, exempt the webhook: `(ip.src.country ne "MV" and not starts_with(http.request.uri.path, "/api/billing/webhook"))`.
-4. **Closed beta (optional)** — Zero Trust → Access → Applications → *Self-hosted* on the same hostname, with a policy of Country = MV plus an email allowlist or one-time PIN. Free for up to 50 users and needs no app changes.
-5. Security → Bots → turn *Bot Fight Mode* off (it interferes with API/WebSocket traffic).
+   - **Container-to-container**, if you would rather not depend on the published port: find the network Postgres is attached to with `docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' postgres`. If it names a *user-defined* network, add to `app` in the compose file
+
+     ```yaml
+     networks: [default, db]
+     ```
+
+     plus a top-level `networks: { db: { external: true, name: <that network> } }`, and set `POSTGRES_HOST` to the Postgres *container's* name. If it only says `bridge`, this will not work — Docker's default bridge has no container-name DNS — so stay with the host gateway.
+   - **A Postgres that listens on the host itself** (not in Docker): same default, since `host.docker.internal` is the host either way.
+
+3. **Tunnel** — in the tunnel already running on the box, add a public hostname (e.g. `beta.example.com`) → service `http://localhost:8080`. The compose binds the app to the host's loopback only, so nothing on the LAN reaches it without going through Cloudflare. WebSockets pass through by default. (If that `cloudflared` is a container rather than a host service, remove `ports` from `app`, attach it to the tunnel container's network too and use `http://app:8080`.)
+4. **Country restriction** — your zone → Security → WAF → Custom rules: expression `(ip.src.country ne "MV")`, action *Block*. It is IP geolocation, so VPNs get around it in both directions. If you switch billing to Stripe, exempt the webhook: `(ip.src.country ne "MV" and not starts_with(http.request.uri.path, "/api/billing/webhook"))`.
+5. **Closed beta (optional)** — Zero Trust → Access → Applications → *Self-hosted* on the same hostname, with a policy of Country = MV plus an email allowlist or one-time PIN. Free for up to 50 users and needs no app changes.
+6. Security → Bots → turn *Bot Fight Mode* off (it interferes with API/WebSocket traffic).
 
 Notes:
 
