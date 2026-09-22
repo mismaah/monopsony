@@ -29,15 +29,32 @@ function shortName(name: string) {
 const CENTRE = HALF * 2 - DEPTH * 2 - 0.1; // side of the centre panel
 const EMBLEM = CENTRE * 0.62;
 
-/** The brand emblem printed in the middle of the board (public/brand/board-centre.png). */
+/**
+ * The flat layers stacked on the centre panel, from the bottom up. They are
+ * spread far wider apart than they need to look right, because the gap is what
+ * a low-precision depth buffer has to resolve; anything under ~0.02 shimmers on
+ * a phone. All of them stay below the tile tops (y = 0.05) so the spread never
+ * shows at the panel's edge.
+ */
+const CENTRE_Y = { panel: 0.005, emblem: 0.03, name: 0.045 } as const;
+
+/**
+ * The brand emblem printed in the middle of the board (public/brand/board-centre.png).
+ *
+ * It is a decal lying on the centre panel, so it has to win the depth test
+ * against it every frame. A phone typically gets a 16-bit depth buffer, where
+ * one depth step is worth far more than any sane gap between the two planes —
+ * hence the polygon offset, which biases the emblem towards the camera in
+ * depth-buffer units rather than world units and so holds at any precision.
+ */
 function CentreEmblem() {
   const map = useTexture("/brand/board-centre.png");
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 8;
   return (
-    <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
+    <mesh position={[0, CENTRE_Y.emblem, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 4]} renderOrder={2}>
       <planeGeometry args={[EMBLEM, EMBLEM]} />
-      <meshStandardMaterial map={map} transparent roughness={0.85} />
+      <meshStandardMaterial map={map} transparent roughness={0.85} depthWrite={false} polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
     </mesh>
   );
 }
@@ -61,7 +78,7 @@ export function Board({ config, state, skin, highlight, selected, onSelect }: Pr
         <meshStandardMaterial color={skin.tileEdge} roughness={0.8} />
       </mesh>
       {/* centre panel */}
-      <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh position={[0, CENTRE_Y.panel, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[CENTRE, CENTRE]} />
         <meshStandardMaterial color={skin.centre} roughness={0.9} />
       </mesh>
@@ -70,13 +87,14 @@ export function Board({ config, state, skin, highlight, selected, onSelect }: Pr
       </Suspense>
       {/* the board's name sits under the emblem, along the same diagonal, so a retheme still shows */}
       <Text
-        position={[EMBLEM * 0.42, 0.02, EMBLEM * 0.42]}
+        position={[EMBLEM * 0.42, CENTRE_Y.name, EMBLEM * 0.42]}
         rotation={[-Math.PI / 2, 0, Math.PI / 4]}
         fontSize={0.42}
         color={skin.text}
         anchorX="center"
         anchorY="middle"
         font={FONT_URL}
+        depthOffset={-2}
         fillOpacity={0.6}
         letterSpacing={0.15}
       >
@@ -124,6 +142,7 @@ export function Board({ config, state, skin, highlight, selected, onSelect }: Pr
               anchorX="center"
               anchorY="middle"
               font={FONT_URL}
+              depthOffset={-2}
             >
               {shortName(def.name).toUpperCase()}
               {def.price ? `\n$${def.price}` : ""}

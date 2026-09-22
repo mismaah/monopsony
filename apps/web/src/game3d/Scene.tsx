@@ -13,6 +13,8 @@ import { useCosmetics } from "@/store/cosmetics";
 import { useIsTouch } from "@/lib/responsive";
 
 const FOV = 42;
+/** Camera near plane; see the note on the Canvas below. */
+const NEAR = 0.5;
 /** The camera's resting direction; its length is the desktop viewing distance. */
 const EYE = new THREE.Vector3(0, 15.5, 12.5);
 /** Centre offset of a corner tile — the furthest the follow camera ever pans. */
@@ -111,7 +113,12 @@ export function Scene({ follow }: { follow: boolean }) {
       // Phones pay for every pixel: cap the ratio and shrink the shadow map
       // rather than dropping frames mid-roll.
       dpr={[1, touch ? 1.5 : 2]}
-      camera={{ fov: FOV, near: 0.1, far: 120 }}
+      // A near plane this close would squander the depth buffer — and a phone
+      // often only has 16 bits of it, which shows up as the flat decals on the
+      // board (the centre emblem, the labels) shimmering against what they sit
+      // on. OrbitControls keeps the camera at least 8 units out, so nothing
+      // ever comes within NEAR of it.
+      camera={{ fov: FOV, near: NEAR, far: 120 }}
       onPointerMissed={() => select(null)}
     >
       <color attach="background" args={["#0b1220"]} />
@@ -131,7 +138,9 @@ export function Scene({ follow }: { follow: boolean }) {
         <Board config={config} state={state} skin={board} highlight={highlight} selected={selectedSpace} onSelect={select} />
         <Tokens state={state} seats={seats} positions={positions} activeId={activeId} />
         <Dice faces={dice.faces} rollId={dice.rollId} skin={diceSkin} />
-        <ContactShadows position={[0, 0.01, 0]} opacity={0.5} scale={20} blur={1.5} far={2} />
+        {/* Sits just under the tile tops (y = 0.05), where it falls on the
+            centre panel only; any lower and it fights the panel for depth. */}
+        <ContactShadows position={[0, 0.045, 0]} opacity={0.5} scale={20} blur={1.5} far={2} />
       </Suspense>
       <CameraRig follow={follow} focusSpace={focusSpace} />
       <AdaptiveDpr pixelated />
