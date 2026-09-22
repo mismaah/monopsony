@@ -10,9 +10,40 @@ html, body, #root {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
+/* Mobile browsers shrink/grow the visual viewport as the URL bar hides, which
+   pushes a bottom-anchored HUD off screen with plain `100%`. */
+@supports (height: 100dvh) {
+  html, body, #root {
+    height: 100dvh;
+  }
+}
+
+body {
+  /* No rubber-banding or pull-to-refresh when a drag starts on the board. */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 canvas {
   touch-action: none;
 }
+
+/* A finger is not a mouse pointer: give the small controls a real target. */
+@media (pointer: coarse) {
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+}
+
+/* Safe-area helpers for HUD edges on notched phones. */
+.pad-safe-bottom { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+.pad-safe-top    { padding-top: max(0.5rem, env(safe-area-inset-top)); }
+
+/* Horizontal strips (the compact players rail) scroll without a visible bar. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 
 /* Floating cash pops on the players rail: slide in from the right, hold, then
    collapse out to the left so the pops behind it shift over smoothly. */
@@ -31,4 +62,8 @@ canvas {
   animation:
     cash-pop-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both,
     cash-pop-out 320ms ease-in var(--cash-pop-hold) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cash-pop { animation-duration: 1ms, 1ms; }
 }

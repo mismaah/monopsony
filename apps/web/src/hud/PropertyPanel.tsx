@@ -15,11 +15,11 @@ export function PropertyPanel() {
   const ownable = def.type === "street" || def.type === "railroad" || def.type === "utility";
 
   return (
-    <div className="w-64 bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden">
+    <div className="w-full sm:w-64 bg-slate-900/90 backdrop-blur-sm border border-slate-800 rounded-xl overflow-hidden flex flex-col max-h-[46vh] sm:max-h-none">
       <div className="px-3 py-2 text-center font-semibold" style={{ background: def.color || "#334155", color: "#fff" }}>
         {def.name}
       </div>
-      <div className="p-3 text-sm space-y-1.5">
+      <div className="p-3 text-sm overflow-y-auto grid grid-cols-2 gap-x-4 gap-y-1 sm:block sm:space-y-1.5">
         {ownable && (
           <div className="flex justify-between">
             <span className="text-slate-400">Price</span>
@@ -55,14 +55,14 @@ export function PropertyPanel() {
         {def.type === "tax" && <Row label="Pay" v={`$${def.taxAmount}`} />}
         {ownable && <Row label="Mortgage value" v={`$${Math.floor(price / 2)}`} />}
         {owner && (
-          <div className="flex items-center gap-2 pt-1 border-t border-slate-800">
+          <div className="col-span-2 flex items-center gap-2 pt-1 mt-1 border-t border-slate-800">
             <span className="w-2 h-2 rounded-full" style={{ background: seatColors[ownerIdx % seatColors.length] }} />
             <span>{owner.name}</span>
             {st.mortgaged && <span className="text-amber-300 text-xs ml-auto">mortgaged</span>}
             {st.houses > 0 && <span className="text-xs ml-auto">{st.houses === 5 ? "hotel" : `${st.houses} house${st.houses > 1 ? "s" : ""}`}</span>}
           </div>
         )}
-        <div className="flex flex-wrap gap-1.5 pt-2">
+        <div className="col-span-2 flex flex-wrap gap-1.5 pt-2">
           {can("BuildHouse") && <Button onClick={() => send("BuildHouse", { space: selectedSpace })}>Build ${def.houseCost ?? 0}</Button>}
           {can("SellHouse") && <Button variant="secondary" onClick={() => send("SellHouse", { space: selectedSpace })}>Sell building</Button>}
           {can("Mortgage") && <Button variant="secondary" onClick={() => send("Mortgage", { space: selectedSpace })}>Mortgage</Button>}

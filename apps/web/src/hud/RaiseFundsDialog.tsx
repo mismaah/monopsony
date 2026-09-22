@@ -34,9 +34,12 @@ export function RaiseFundsDialog({ onClose, onTrade }: { onClose: () => void; on
   const canCover = meP.cash + raisable >= owed;
 
   return (
-    <div className="fixed inset-0 bg-black/60 grid place-items-center z-30" onClick={onClose}>
-      <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 w-[560px] max-w-[95vw]" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-baseline gap-3 mb-1">
+    <div className="fixed inset-0 bg-black/60 z-30 flex items-end sm:items-center justify-center overflow-y-auto overscroll-contain" onClick={onClose}>
+      <div
+        className="bg-slate-900 border border-slate-700 w-full sm:w-[560px] sm:max-w-[95vw] rounded-t-2xl sm:rounded-xl p-4 max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto pad-safe-bottom"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-1">
           <h3 className="font-semibold">Raise ${owed.toLocaleString()}</h3>
           <span className="text-xs text-slate-400">owed to {creditors.join(", ")}</span>
           <span className="flex-1" />
@@ -59,7 +62,7 @@ export function RaiseFundsDialog({ onClose, onTrade }: { onClose: () => void; on
           )}
         </div>
 
-        <ul className="space-y-1 max-h-72 overflow-auto pr-1">
+        <ul className="space-y-1.5 max-h-[45vh] sm:max-h-72 overflow-auto pr-1">
           {mine.length === 0 && <li className="text-slate-500 text-xs">You own no properties.</li>}
           {mine.map(({ s, i }) => {
             const def = config.spaces[i];
@@ -71,9 +74,9 @@ export function RaiseFundsDialog({ onClose, onTrade }: { onClose: () => void; on
             const mortgageable = can("Mortgage", i);
             const idle = !sellable && !mortgageable;
             return (
-              <li key={i} className={`flex items-center gap-2 text-sm rounded px-2 py-1 bg-slate-800/50 ${idle ? "opacity-50" : ""}`}>
+              <li key={i} className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-sm rounded px-2 py-1.5 bg-slate-800/50 ${idle ? "opacity-50" : ""}`}>
                 <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: def.color || "#64748b" }} />
-                <span className="flex-1 truncate">{def.name}</span>
+                <span className="flex-1 min-w-[6rem] truncate">{def.name}</span>
                 {s.houses > 0 && <span className="text-xs text-slate-400">{s.houses === 5 ? "hotel" : `${s.houses} house${s.houses > 1 ? "s" : ""}`}</span>}
                 {s.mortgaged && <span className="text-xs text-amber-300">mortgaged</span>}
                 {sellable && (
@@ -94,7 +97,7 @@ export function RaiseFundsDialog({ onClose, onTrade }: { onClose: () => void; on
           })}
         </ul>
 
-        <div className="flex items-center gap-2 mt-4">
+        <div className="flex flex-wrap items-center gap-2 mt-4 sticky bottom-0 bg-slate-900 pt-2">
           {legal.some((a) => a.type === "DeclareBankruptcy") && (
             <Button variant="danger" disabled={animating} onClick={() => send("DeclareBankruptcy")}>Declare bankruptcy</Button>
           )}

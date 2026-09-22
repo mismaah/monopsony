@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -21,5 +21,8 @@ export default defineConfig({
     },
   },
   assetsInclude: ["**/*.glb"],
+  // Unit tests live beside the source; e2e/ is Playwright's and throws if
+  // vitest collects it.
+  test: { include: ["src/**/*.{test,spec}.{ts,tsx}"] },
   build: { outDir: "dist", sourcemap: true },
 });

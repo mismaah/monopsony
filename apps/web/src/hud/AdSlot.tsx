@@ -48,7 +48,7 @@ export function useAdsConfig(): AdsConfig | null {
 }
 
 const sizes: Record<Placement, string> = {
-  game: "w-64 h-16",
+  game: "w-full h-14 sm:w-64 sm:h-16",
   lobby: "w-full min-h-[250px]",
   shop: "w-full min-h-[90px]",
 };

@@ -16,7 +16,7 @@ export function Button({
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
   return (
     <button
-      className={`px-3 py-1.5 rounded-md text-sm transition disabled:opacity-40 disabled:cursor-not-allowed ${variants[variant]} ${className}`}
+      className={`px-3 py-2 sm:py-1.5 rounded-md text-sm transition disabled:opacity-40 disabled:cursor-not-allowed ${variants[variant]} ${className}`}
       {...rest}
     />
   );
@@ -25,7 +25,7 @@ export function Button({
 export function Input({ className = "", ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`px-3 py-2 rounded-md bg-slate-800 border border-slate-700 focus:border-emerald-400 outline-none text-sm w-full ${className}`}
+      className={`px-3 py-2 rounded-md bg-slate-800 border border-slate-700 focus:border-emerald-400 outline-none text-base sm:text-sm w-full ${className}`}
       {...rest}
     />
   );
@@ -33,7 +33,7 @@ export function Input({ className = "", ...rest }: InputHTMLAttributes<HTMLInput
 
 export function Card({ title, children, className = "" }: { title?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={`bg-slate-900/80 border border-slate-800 rounded-xl p-4 ${className}`}>
+    <section className={`bg-slate-900/80 border border-slate-800 rounded-xl p-3 sm:p-4 ${className}`}>
       {title && <h2 className="text-sm uppercase tracking-wide text-slate-400 mb-3">{title}</h2>}
       {children}
     </section>

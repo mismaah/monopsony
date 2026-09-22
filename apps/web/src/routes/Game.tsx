@@ -12,6 +12,7 @@ import { socket } from "@/api/ws";
 import { AdSlot } from "@/hud/AdSlot";
 import { SoundControl } from "@/hud/SoundControl";
 import { sfx } from "@/audio/sfx";
+import { useIsCompact, useIsShort } from "@/lib/responsive";
 
 /** The in-game screen: full-bleed 3D canvas with HUD panels layered on top. */
 export default function GamePage() {
@@ -19,6 +20,13 @@ export default function GamePage() {
   const [trade, setTrade] = useState(false);
   const [raise, setRaise] = useState(false);
   const lobby = useGame((s) => s.lobby);
+  const compact = useIsCompact();
+  const short = useIsShort();
+  // A deed card or a live trade offer already fills the bottom strip; the ad
+  // waits its turn rather than pushing the action bar off screen. A sideways
+  // phone has no spare height for it at all.
+  const selected = useGame((s) => s.selectedSpace);
+  const offer = useGame((s) => s.state?.trade);
   useEffect(() => sfx.install(), []);
 
   // Pop the raise-funds panel once per debt, after the landing animation has
@@ -40,6 +48,48 @@ export default function GamePage() {
     }
   }, [raising, animating]);
 
+  const dialogs = (
+    <>
+      <CardOverlay />
+      <GameOverOverlay />
+      <KickedOverlay />
+      {raise && !trade && <RaiseFundsDialog onClose={() => setRaise(false)} onTrade={() => setTrade(true)} />}
+      {trade && <TradeDialog onClose={() => setTrade(false)} />}
+    </>
+  );
+
+  // Phone layout: the board keeps the middle band of the screen and the HUD
+  // lives in two full-width strips, top and bottom, instead of four floating
+  // panels that would overlap each other at this width.
+  if (compact) {
+    return (
+      <div className="relative h-full overflow-hidden select-none">
+        <Scene follow={follow} />
+
+        <div className="absolute inset-x-0 top-0 z-10 flex items-start gap-2 p-2 pad-safe-top">
+          <div className="flex-1 min-w-0">
+            <PlayersRail compact />
+          </div>
+          <div className="shrink-0 flex items-center gap-1 bg-slate-900/85 backdrop-blur-sm border border-slate-800 rounded-lg px-1.5 py-1 text-xs text-slate-300">
+            <FollowToggle follow={follow} onChange={setFollow} compact />
+            <SoundControl compact />
+            <ConnectionDot />
+          </div>
+        </div>
+
+        <div className="absolute inset-x-0 bottom-0 z-10 mx-auto w-full sm:max-w-lg flex flex-col items-center gap-2 p-2 pad-safe-bottom max-h-[80dvh] overflow-y-auto overscroll-contain no-scrollbar">
+          <TradeBanner />
+          <PropertyPanel />
+          <LogPanel compact />
+          {selected === null && !offer && !short && <AdSlot placement="game" />}
+          <ActionBar onTrade={() => setTrade(true)} onRaiseFunds={() => setRaise(true)} />
+        </div>
+
+        {dialogs}
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-full overflow-hidden select-none">
       <Scene follow={follow} />
@@ -53,9 +103,7 @@ export default function GamePage() {
       <div className="absolute right-3 top-3 z-10 flex flex-col items-end gap-2">
         <div className="bg-slate-900/80 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 flex items-center gap-3">
           <span className="font-medium text-slate-100">{lobby?.name}</span>
-          <label className="flex items-center gap-1 cursor-pointer">
-            <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> follow
-          </label>
+          <FollowToggle follow={follow} onChange={setFollow} />
           <SoundControl />
           <ConnectionDot />
         </div>
@@ -78,12 +126,31 @@ export default function GamePage() {
         <AdSlot placement="game" />
       </div>
 
-      <CardOverlay />
-      <GameOverOverlay />
-      <KickedOverlay />
-      {raise && !trade && <RaiseFundsDialog onClose={() => setRaise(false)} onTrade={() => setTrade(true)} />}
-      {trade && <TradeDialog onClose={() => setTrade(false)} />}
+      {dialogs}
     </div>
+  );
+}
+
+/** Camera-follow switch: a checkbox with room for a label, an icon without. */
+function FollowToggle({ follow, onChange, compact = false }: { follow: boolean; onChange: (v: boolean) => void; compact?: boolean }) {
+  if (compact) {
+    return (
+      <button
+        type="button"
+        aria-pressed={follow}
+        aria-label={follow ? "Stop following the active player" : "Follow the active player"}
+        title={follow ? "Camera follows the active player" : "Free camera"}
+        className={`px-1 py-0.5 rounded ${follow ? "text-emerald-300" : "text-slate-500"}`}
+        onClick={() => onChange(!follow)}
+      >
+        ◎
+      </button>
+    );
+  }
+  return (
+    <label className="flex items-center gap-1 cursor-pointer">
+      <input type="checkbox" checked={follow} onChange={(e) => onChange(e.target.checked)} /> follow
+    </label>
   );
 }
 

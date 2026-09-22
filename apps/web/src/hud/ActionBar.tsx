@@ -79,14 +79,14 @@ export function ActionBar({ onTrade, onRaiseFunds }: { onTrade: () => void; onRa
   }
 
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-3 min-w-[420px] max-w-[680px]">
-      <div className="flex items-center gap-3 mb-2">
-        <span className="text-sm font-medium">{headline}</span>
+    <div className="bg-slate-900/90 backdrop-blur-sm border border-slate-800 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 w-full sm:w-auto sm:min-w-[420px] sm:max-w-[680px]">
+      <div className="flex items-start gap-2 sm:gap-3 mb-2">
+        <span className="text-sm font-medium min-w-0">{headline}</span>
         <span className="flex-1" />
         <Countdown deadline={deadline} />
         {has("Surrender") &&
           (confirmSurrender ? (
-            <span className="flex items-center gap-1 text-xs">
+            <span className="flex flex-wrap items-center justify-end gap-1 text-xs">
               <span className="text-rose-300">Give up and leave the game?</span>
               <Button
                 variant="danger"
@@ -105,7 +105,7 @@ export function ActionBar({ onTrade, onRaiseFunds }: { onTrade: () => void; onRa
           ) : (
             <button
               type="button"
-              className="text-xs text-slate-500 hover:text-rose-300 transition"
+              className="shrink-0 -my-1 py-1 px-1 text-xs text-slate-500 hover:text-rose-300 transition"
               title="Declare bankruptcy and leave the game"
               onClick={() => setConfirmSurrender(true)}
             >
@@ -124,7 +124,7 @@ export function ActionBar({ onTrade, onRaiseFunds }: { onTrade: () => void; onRa
           <div className="flex items-center gap-1">
             <input
               type="number"
-              className="w-24 bg-slate-800 rounded px-2 py-1 text-sm"
+              className="w-20 sm:w-24 bg-slate-800 rounded px-2 py-2 sm:py-1 text-base sm:text-sm"
               min={act("PlaceBid")!.minBid}
               value={Math.max(bid, act("PlaceBid")!.minBid ?? 1)}
               onChange={(e) => setBid(+e.target.value)}

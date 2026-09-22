@@ -26,7 +26,7 @@ export function CardOverlay() {
           animate={{ opacity: 1, rotateY: 0, scale: 1 }}
           exit={{ opacity: 0, y: -40 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
-          className={`absolute left-1/2 top-1/3 -translate-x-1/2 w-72 rounded-xl p-5 shadow-2xl border ${card.deck === "chance" ? "bg-sky-100 border-sky-300 text-sky-950" : "bg-amber-100 border-amber-300 text-amber-950"}`}
+          className={`absolute left-1/2 top-1/4 sm:top-1/3 -translate-x-1/2 w-[17rem] max-w-[90vw] rounded-xl p-5 shadow-2xl border z-20 ${card.deck === "chance" ? "bg-sky-100 border-sky-300 text-sky-950" : "bg-amber-100 border-amber-300 text-amber-950"}`}
         >
           <div className="text-xs uppercase tracking-widest opacity-70 mb-2">{label}</div>
           <div className="font-medium leading-snug">{card.text}</div>
@@ -78,7 +78,7 @@ export function TradeBanner() {
         type="button"
         onClick={() => select(space)}
         title="Show full deed"
-        className="w-40 text-left bg-slate-800/80 hover:bg-slate-800 border border-slate-700 rounded-lg overflow-hidden transition-colors"
+        className="w-36 sm:w-40 text-left bg-slate-800/80 hover:bg-slate-800 border border-slate-700 rounded-lg overflow-hidden transition-colors"
       >
         <div className="px-2 py-1 text-xs font-semibold truncate" style={{ background: def.color || "#475569", color: "#fff" }}>
           {def.name}
@@ -120,19 +120,19 @@ export function TradeBanner() {
   };
 
   return (
-    <div className={`bg-slate-900/95 border rounded-xl px-4 py-3 text-sm w-[640px] max-w-[95vw] shadow-xl ${forMe ? "border-emerald-400" : "border-slate-700"}`}>
-      <div className="flex items-center gap-2 mb-2">
+    <div className={`bg-slate-900/95 border rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 text-sm w-full sm:w-[640px] sm:max-w-[95vw] max-h-[42vh] sm:max-h-none overflow-y-auto shadow-xl ${forMe ? "border-emerald-400" : "border-slate-700"}`}>
+      <div className="flex flex-wrap items-center gap-2 mb-2">
         <span className="w-2 h-2 rounded-full" style={{ background: seat(t.fromId) }} />
         <span className="font-medium">{name(t.fromId)}</span>
         <span className="text-slate-400">proposes a trade with</span>
         <span className="w-2 h-2 rounded-full" style={{ background: seat(t.toId) }} />
         <span className="font-medium">{name(t.toId)}</span>
         <span className="flex-1" />
-        <span className="text-xs text-slate-500">Click a property for its full deed</span>
+        <span className="hidden sm:inline text-xs text-slate-500">Click a property for its full deed</span>
       </div>
-      <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
         <Side side={t.give} fromId={t.fromId} toId={t.toId} label={`${name(t.fromId)} gives`} tone="text-emerald-300" />
-        <div className="self-center text-slate-500 text-lg">⇄</div>
+        <div className="self-center text-slate-500 text-lg rotate-90 sm:rotate-0">⇄</div>
         <Side side={t.receive} fromId={t.toId} toId={t.fromId} label={`${name(t.toId)} gives`} tone="text-amber-300" />
       </div>
     </div>
@@ -150,7 +150,7 @@ export function GameOverOverlay() {
   const winner = state.players.find((p) => p.id === state.winnerId);
   return (
     <div className="absolute inset-0 grid place-items-center bg-black/50 z-20">
-      <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-slate-900 border border-amber-400/50 rounded-2xl p-8 text-center">
+      <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-slate-900 border border-amber-400/50 rounded-2xl p-6 sm:p-8 text-center mx-4 max-w-sm">
         <div className="text-5xl mb-2">🏆</div>
         <h2 className="text-2xl font-bold">{winner?.name} wins!</h2>
         <p className="text-slate-400 mt-1">After {state.turn.number} turns</p>
@@ -169,7 +169,7 @@ export function KickedOverlay() {
   if (!kicked) return null;
   return (
     <div className="absolute inset-0 grid place-items-center bg-black/50 z-20">
-      <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-slate-900 border border-rose-400/50 rounded-2xl p-8 text-center max-w-sm">
+      <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-slate-900 border border-rose-400/50 rounded-2xl p-6 sm:p-8 text-center mx-4 max-w-sm">
         <h2 className="text-2xl font-bold">You were removed</h2>
         <p className="text-slate-400 mt-1">The host took you out of this game. A bot is playing your seat from here on.</p>
         <Button className="mt-4" onClick={() => nav("/lobby")}>
@@ -180,37 +180,66 @@ export function KickedOverlay() {
   );
 }
 
-/** Event log + chat in one scrolling panel. */
-export function LogPanel() {
+/**
+ * Event log + chat in one scrolling panel. On a phone it collapses to a
+ * single-line header showing the latest event; tapping it opens the full
+ * scrollback and the chat box.
+ */
+export function LogPanel({ compact = false }: { compact?: boolean }) {
   const { log, chat, gameId } = useGame();
   const [text, setText] = useState("");
+  const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const lines = [
     ...log.map((l) => ({ key: `e${l.seq}`, at: l.seq, text: l.text, cls: l.kind === "alert" ? "text-amber-300" : l.kind === "money" ? "text-emerald-300" : "text-slate-300" })),
     ...chat.map((c, i) => ({ key: `c${i}`, at: Number.MAX_SAFE_INTEGER - chat.length + i, text: `${c.name}: ${c.text}`, cls: "text-sky-300" })),
   ];
+  const expanded = !compact || open;
   useEffect(() => {
-    ref.current?.scrollTo({ top: ref.current.scrollHeight });
-  }, [log.length, chat.length]);
+    if (expanded) ref.current?.scrollTo({ top: ref.current.scrollHeight });
+  }, [log.length, chat.length, expanded]);
+
+  const last = lines[lines.length - 1];
   return (
-    <div className="w-80 h-56 bg-slate-900/85 border border-slate-800 rounded-xl flex flex-col">
-      <div ref={ref} className="flex-1 overflow-auto px-3 py-2 text-xs space-y-0.5">
-        {lines.slice(-80).map((l) => (
-          <div key={l.key} className={l.cls}>
-            {l.text}
+    <div className={`bg-slate-900/85 backdrop-blur-sm border border-slate-800 rounded-xl flex flex-col ${compact ? "w-full" : "w-80 h-56"}`}>
+      {compact && (
+        <button
+          type="button"
+          className="flex items-center gap-2 px-3 py-2 text-xs text-left"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span className={`flex-1 truncate ${last?.cls ?? "text-slate-400"}`}>{last?.text ?? "Game log"}</span>
+          <span className="text-slate-500">{open ? "▾" : "▴"}</span>
+        </button>
+      )}
+      {expanded && (
+        <>
+          <div ref={ref} className={`flex-1 overflow-auto px-3 py-2 text-xs space-y-0.5 ${compact ? "h-36 border-t border-slate-800" : ""}`}>
+            {lines.slice(-80).map((l) => (
+              <div key={l.key} className={l.cls}>
+                {l.text}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <form
-        className="border-t border-slate-800 flex"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (gameId && text.trim()) socket.chat(gameId, text.trim());
-          setText("");
-        }}
-      >
-        <input className="flex-1 bg-transparent px-3 py-1.5 text-xs outline-none" placeholder="Say something…" value={text} onChange={(e) => setText(e.target.value)} maxLength={200} />
-      </form>
+          <form
+            className="border-t border-slate-800 flex"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (gameId && text.trim()) socket.chat(gameId, text.trim());
+              setText("");
+            }}
+          >
+            <input
+              className="flex-1 bg-transparent px-3 py-2 sm:py-1.5 text-base sm:text-xs outline-none"
+              placeholder="Say something…"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              maxLength={200}
+            />
+          </form>
+        </>
+      )}
     </div>
   );
 }
