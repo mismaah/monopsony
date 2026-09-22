@@ -146,7 +146,7 @@ One-time setup on the box:
      plus a top-level `networks: { db: { external: true, name: <that network> } }`, and set `POSTGRES_HOST` to the Postgres *container's* name. If it only says `bridge`, this will not work — Docker's default bridge has no container-name DNS — so stay with the host gateway.
    - **A Postgres that listens on the host itself** (not in Docker): same default, since `host.docker.internal` is the host either way.
 
-3. **Tunnel** — in the tunnel already running on the box, add a public hostname (e.g. `beta.example.com`) → service `http://localhost:8080`. The compose binds the app to the host's loopback only, so nothing on the LAN reaches it without going through Cloudflare. WebSockets pass through by default. (If that `cloudflared` is a container rather than a host service, remove `ports` from `app`, attach it to the tunnel container's network too and use `http://app:8080`.)
+3. **Tunnel** — in the tunnel already running on the box, add a public hostname (e.g. `beta.example.com`) → service `http://localhost:8080`, the single port the compose publishes (`APP_PORT` if you changed it). It is bound to `127.0.0.1`, so nothing on the LAN reaches it without going through Cloudflare. WebSockets pass through by default. (If that `cloudflared` is a container rather than a host service, remove `ports` from `app`, attach it to the tunnel container's network too and use `http://app:8080`.)
 4. **Country restriction** — your zone → Security → WAF → Custom rules: expression `(ip.src.country ne "MV")`, action *Block*. It is IP geolocation, so VPNs get around it in both directions. If you switch billing to Stripe, exempt the webhook: `(ip.src.country ne "MV" and not starts_with(http.request.uri.path, "/api/billing/webhook"))`.
 5. **Closed beta (optional)** — Zero Trust → Access → Applications → *Self-hosted* on the same hostname, with a policy of Country = MV plus an email allowlist or one-time PIN. Free for up to 50 users and needs no app changes.
 6. Security → Bots → turn *Bot Fight Mode* off (it interferes with API/WebSocket traffic).
@@ -155,7 +155,7 @@ Notes:
 
 - `MONOPSONY_TRUST_PROXY` defaults to `1` in the prod compose because cloudflared is the only thing that can reach the app and it sets `X-Forwarded-For` to the visitor. Keep the port bound to `127.0.0.1` (never `0.0.0.0`), or LAN clients bypass both the country rule and the real-IP rate limits.
 - `MONOPSONY_ENV=prod` (baked into the image) makes cookies `Secure`, which is why the stack only works behind HTTPS.
-- `--scale app=N` runs several nodes; games are reachable from any node through Redis, so no sticky sessions. Uploaded assets live in the `media` volume; sync it to object storage if you run more than one node.
+- Several nodes: run the compose again with its own project name and port (`APP_PORT=8081 docker compose … -p mono2 up -d`). They share Postgres and Redis, so games are reachable from any node and no sticky sessions are needed — but one tunnel hostname points at one origin, so you need a proxy or Cloudflare Load Balancer in front to actually use them. Uploaded assets live in each stack's `media` volume; sync it to object storage first.
 - Metrics are on `:9100` inside the compose network only.
 - Backups: Postgres holds users and games; the `media` volume holds uploaded cosmetics. Something like this on a schedule:
 

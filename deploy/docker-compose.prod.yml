@@ -10,12 +10,15 @@
 # sits, including the default bridge network. To go container-to-container
 # instead, see "Talking to Postgres" in the README.
 #
-# The app listens on the host's loopback only (127.0.0.1:8080): point the
-# tunnel's public hostname at http://localhost:8080 and nothing on the LAN can
-# bypass Cloudflare.
+# The app listens on the host's loopback only (127.0.0.1:${APP_PORT:-8080}), so
+# point the tunnel's public hostname at http://localhost:8080 (or whatever
+# APP_PORT you set) and nothing on the LAN can bypass Cloudflare.
 #
-# `--scale app=3` runs several nodes (each takes the next loopback port; games
-# are reachable from any node through Redis, so no sticky sessions).
+# Several nodes: give each its own project name and port, e.g.
+#   APP_PORT=8081 docker compose -f deploy/docker-compose.prod.yml -p mono2 up -d
+# They share Postgres and Redis, so games are reachable from any node and no
+# sticky sessions are needed — but one tunnel hostname points at one origin, so
+# put a proxy (or Cloudflare Load Balancer) in front if you actually scale out.
 services:
   redis:
     image: redis:7-alpine
@@ -39,7 +42,8 @@ services:
       # this line; Docker Desktop provides the name anyway).
       - "host.docker.internal:host-gateway"
     ports:
-      - "127.0.0.1:8080-8089:8080"
+      # Loopback only: cloudflared reaches it, the LAN does not.
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
     volumes:
       - media:/app/data/assets
     environment:
